@@ -1,0 +1,49 @@
+sunnah_audio_server_config:
+  port: 8990
+  host: "127.0.0.1"
+
+jwt_auth_config:
+  secret: "O07G947TB8B2XUU2QXA0I9DK9Q19C2"
+  token_expiration_time: 3 #in days
+
+postgres:
+  username: "postgres"
+  password: "password"
+  host: "localhost"
+  port: 5432
+  database_name: "shunku_middleware"
+
+mysql:
+  username: "admin"
+  password: "password"
+  host: "localhost"
+  port: 3306
+  database_name: "muryar_sunnah"
+
+redis:
+  host: "localhost"
+  port: 6379
+  password:
+
+rabbitmq:
+  url: "amqp://guest:guest@localhost:5672"
+
+coralpay_config:
+  base_url: "http://204.8.207.124:8080/coralpay-vas/api"
+  username: "shunkupay"
+  password: "Shunk8pay3"
+  biller_groups: "/create/request"
+  biller_groups_id: "billers/group"
+  biller_groups_slug: "billers/group/slug"
+  biller_packages_id: "packages/biller"
+  biller_packages_slug: "packages/biller/slug"
+  validate_customer: "transactions/customer-lookup"
+  vend_value: "transactions/process-payment"
+
+vtpass_config:
+  base_url: "https://sandbox.vtpass.com/api"
+  api_key: "5466uyhgfrtyujhgtruijhg"
+  public_key: "sdfghjjkhgfdtrhgjtyfghj"
+  secret_key: "ewrtyuiyutcrx43678ytgfderrt"
+  username: "mubarakcoded@gmail.com"
+  password: "Vtp@$$Sandbox"
