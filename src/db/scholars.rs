@@ -8,7 +8,7 @@ pub async fn fetch_scholars(pool: &MySqlPool) -> Result<Vec<Scholar>, AppError> 
         "SELECT 
             tbl_scholars.id,
             tbl_scholars.name,
-            CONCAT('http://yourdomain.com/images/', tbl_scholars.image) AS image,
+            CONCAT('http://127.0.0.1:8990/api/v1/static/images/', tbl_scholars.image) AS image,
             tbl_states.name AS state
         FROM tbl_scholars
         JOIN tbl_states ON tbl_scholars.state = tbl_states.id
@@ -30,7 +30,7 @@ pub async fn fetch_scholars_by_state(
         "SELECT 
             tbl_scholars.id,
             tbl_scholars.name,
-            CONCAT('http://yourdomain.com/images/', tbl_scholars.image) AS image,
+            CONCAT('http://127.0.0.1:8990/api/v1/static/images/', tbl_scholars.image) AS image,
             tbl_states.name AS state
         FROM tbl_scholars
         JOIN tbl_states ON tbl_scholars.state = tbl_states.id
