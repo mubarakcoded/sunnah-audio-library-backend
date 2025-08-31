@@ -3,17 +3,14 @@ use actix_web::{
     web::{self},
     HttpResponse, Responder,
 };
-use bigdecimal::{BigDecimal, Zero};
-// use chrono::Utc;
-use sqlx::{MySqlPool, PgPool};
+use sqlx::MySqlPool;
 use tracing::instrument;
-use uuid::Uuid;
 
 // const BANK_CODE: &str = "SHUNKU";
 // const BANK_NAME: &str = "009291";
 
 use crate::{
-    core::{jwt_auth, AppError, AppErrorType, AppSuccessResponse},
+    core::{AppError, AppErrorType, AppSuccessResponse},
     db::states,
 };
 
@@ -140,5 +137,6 @@ pub async fn get_states(pool: web::Data<MySqlPool>) -> Result<impl Responder, Ap
         success: true,
         message: "States retrieved successfully".to_string(),
         data: Some(result),
+        pagination: None,
     }))
 }

@@ -1,55 +1,87 @@
 use crate::core::AppError;
 use crate::models::files::{FileSearchResult, Files, RecentFiles, RelatedFiles, ViewFileDetails};
+use crate::models::pagination::PaginationQuery;
 use sqlx::MySqlPool;
 
-pub async fn fetch_files_by_book(pool: &MySqlPool, book_id: i32) -> Result<Vec<Files>, AppError> {
+pub async fn fetch_files_by_book(
+    pool: &MySqlPool,
+    book_id: i32,
+    pagination: &PaginationQuery,
+) -> Result<(Vec<Files>, i64), AppError> {
     let files = sqlx::query_as!(
         Files,
-        "SELECT id, name, size, duration, downloads, date, location AS url FROM tbl_files WHERE book = ?",
-        book_id
+        "SELECT
+            f.id as file_id,
+            f.name as file_name,
+            f.book as book_id,
+            f.size as file_size,
+            f.duration as file_duration,
+            f.date,
+            f.downloads,
+            COALESCE(CONCAT('http://127.0.0.1:8990/api/v1/static/uploads/', f.location), '') AS file_url,
+            s.id as scholar_id,
+            s.name as scholar_name,
+            COALESCE(CONCAT('http://127.0.0.1:8990/api/v1/static/images/', s.image), '') AS scholar_image
+        FROM tbl_files f
+        JOIN tbl_scholars s ON f.scholar = s.id
+        WHERE f.status = 'active'
+        AND f.book = ?
+        LIMIT ? OFFSET ?",
+        book_id,
+        pagination.per_page,
+        pagination.offset()
     )
     .fetch_all(pool)
     .await
     .map_err(AppError::db_error)?;
 
-    Ok(files)
+    let total_count: i64 = sqlx::query_scalar!(
+        "SELECT COUNT(*) FROM tbl_files WHERE book = ? AND status = 'active'",
+        book_id
+    )
+    .fetch_one(pool)
+    .await
+    .map_err(AppError::db_error)?;
+
+    Ok((files, total_count))
 }
 
 pub async fn fetch_recent_files(
     pool: &MySqlPool,
-    page: i64,
-    items_per_page: i64,
+    pagination: &PaginationQuery,
 ) -> Result<(Vec<RecentFiles>, i64), AppError> {
-    // Calculate the offset
-    let offset = (page - 1) * items_per_page;
-
-    // Fetch the files with limit and offset
     let files = sqlx::query_as!(
         RecentFiles,
         r#"
         SELECT
-            f.id,
+            f.id as file_id,
             f.name as file_name,
+            f.book as book_id,
+            f.size as file_size,
+            f.duration as file_duration,
+            f.date,
+            f.downloads,
+            COALESCE(CONCAT('http://127.0.0.1:8990/api/v1/static/uploads/', f.location), '') AS "file_url!",
+            s.id as scholar_id,
             s.name as scholar_name,
-            s.image as scholar_image,
-            f.date
+            COALESCE(CONCAT('http://127.0.0.1:8990/api/v1/static/images/', s.image), '') AS "scholar_image!"
         FROM tbl_files f
         JOIN tbl_scholars s ON f.scholar = s.id
         ORDER BY f.date DESC
         LIMIT ? OFFSET ?
         "#,
-        items_per_page,
-        offset
+        pagination.per_page,
+        pagination.offset()
     )
     .fetch_all(pool)
     .await
     .map_err(AppError::db_error)?;
 
-    // Fetch total count for pagination metadata
-    let total_count: i64 = sqlx::query_scalar!("SELECT COUNT(*) FROM tbl_files")
-        .fetch_one(pool)
-        .await
-        .map_err(AppError::db_error)?;
+    let total_count: i64 =
+        sqlx::query_scalar!("SELECT COUNT(*) FROM tbl_files WHERE status = 'active'")
+            .fetch_one(pool)
+            .await
+            .map_err(AppError::db_error)?;
 
     Ok((files, total_count))
 }
@@ -205,4 +237,35 @@ pub async fn fetch_related_files(
     })?;
 
     Ok((related_files, total_count))
+}
+
+pub async fn create_file_record(
+    pool: &MySqlPool,
+    name: &str,
+    location: &str,
+    size: i64,
+    duration: Option<f64>,
+    book_id: i32,
+    scholar_id: i32,
+) -> Result<i64, AppError> {
+    let result = sqlx::query!(
+        r#"
+        INSERT INTO tbl_files (name, location, size, duration, book, scholar, status, created_at, date)
+        VALUES (?, ?, ?, ?, ?, ?, 'active', NOW(), NOW())
+        "#,
+        name,
+        location,
+        size,
+        duration,
+        book_id,
+        scholar_id
+    )
+    .execute(pool)
+    .await
+    .map_err(|e| {
+        tracing::error!("Failed to create file record: {:?}", e);
+        AppError::db_error(e.to_string())
+    })?;
+
+    Ok(result.last_insert_id() as i64)
 }

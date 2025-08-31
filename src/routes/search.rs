@@ -8,7 +8,7 @@ use sqlx::MySqlPool;
 use tracing::instrument;
 
 use crate::{
-    core::{jwt_auth, AppError, AppErrorType, AppSuccessResponse},
+    core::{AppError, AppErrorType, AppSuccessResponse},
     db::{books, files, scholars},
 };
 
@@ -103,5 +103,6 @@ pub async fn full_text_search(
                 }
             },
         })),
+        pagination: None,
     }))
 }

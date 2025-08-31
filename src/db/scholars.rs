@@ -1,8 +1,12 @@
 use crate::core::AppError;
+use crate::models::pagination::PaginationQuery;
 use crate::models::scholars::{Scholar, ScholarSearchResult};
 use sqlx::MySqlPool;
 
-pub async fn fetch_scholars(pool: &MySqlPool) -> Result<Vec<Scholar>, AppError> {
+pub async fn fetch_scholars(
+    pool: &MySqlPool,
+    pagination: &PaginationQuery,
+) -> Result<(Vec<Scholar>, i64), AppError> {
     let scholars = sqlx::query_as!(
         Scholar,
         "SELECT 
@@ -12,19 +16,29 @@ pub async fn fetch_scholars(pool: &MySqlPool) -> Result<Vec<Scholar>, AppError> 
             tbl_states.name AS state
         FROM tbl_scholars
         JOIN tbl_states ON tbl_scholars.state = tbl_states.id
-        WHERE tbl_scholars.status = 'active'"
+        WHERE tbl_scholars.status = 'active'
+        LIMIT ? OFFSET ?",
+        pagination.per_page,
+        pagination.offset()
     )
     .fetch_all(pool)
     .await
     .map_err(AppError::db_error)?;
 
-    Ok(scholars)
+    let total_count: i64 =
+        sqlx::query_scalar!("SELECT COUNT(*) FROM tbl_scholars WHERE status = 'active'")
+            .fetch_one(pool)
+            .await
+            .map_err(AppError::db_error)?;
+
+    Ok((scholars, total_count))
 }
 
 pub async fn fetch_scholars_by_state(
     pool: &MySqlPool,
     state_id: i32,
-) -> Result<Vec<Scholar>, AppError> {
+    pagination: &PaginationQuery,
+) -> Result<(Vec<Scholar>, i64), AppError> {
     let scholars = sqlx::query_as!(
         Scholar,
         "SELECT 
@@ -34,14 +48,25 @@ pub async fn fetch_scholars_by_state(
             tbl_states.name AS state
         FROM tbl_scholars
         JOIN tbl_states ON tbl_scholars.state = tbl_states.id
-        WHERE tbl_states.id = ? AND tbl_scholars.status = 'active'",
-        state_id
+        WHERE tbl_states.id = ? AND tbl_scholars.status = 'active'
+        LIMIT ? OFFSET ?",
+        state_id,
+        pagination.per_page,
+        pagination.offset()
     )
     .fetch_all(pool)
     .await
     .map_err(AppError::db_error)?;
 
-    Ok(scholars)
+    let total_count: i64 = sqlx::query_scalar!(
+        "SELECT COUNT(*) FROM tbl_scholars WHERE state = ? AND status = 'active'",
+        state_id
+    )
+    .fetch_one(pool)
+    .await
+    .map_err(AppError::db_error)?;
+
+    Ok((scholars, total_count))
 }
 
 pub async fn search_scholars(
