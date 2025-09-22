@@ -7,19 +7,24 @@ use files::{get_files_by_book, get_recent_files, get_related_files, view_file};
 use scholars::{get_scholars, get_scholars_by_state};
 use search::full_text_search;
 use states::get_states;
-mod auth;
+use permissions::{get_user_permissions, grant_access, revoke_access, get_all_accesses};
+use uploads::{upload_file, download_file};
+use users::{register, login, get_profile, update_profile, change_password, forgot_password, reset_password, deactivate_account};
 mod books;
 mod files;
 mod health_check;
 mod scholars;
 mod search;
 mod states;
+mod permissions;
+mod uploads;
+mod users;
 
-use self::auth::auth_routes::login;
+// Removed old auth login import - using new user authentication system
 use crate::routes::health_check::*;
 // use self::vas::{cable_networks::*, mobile_networks::*, data_plans::*};
 const IMAGES_DIR: &str = "/home/mubarak/Documents/my-documents/muryar_sunnah/web/images";
-const FILES_DIR: &str = "/var/www/project-name/web/uploads";
+
 fn util_routes() -> Scope {
     scope("")
         .service(get_states)
@@ -28,9 +33,9 @@ fn util_routes() -> Scope {
 }
 
 fn books_routes() -> Scope {
-    scope("books").service(get_files_by_book)
-    // .service(view_accounts)
-    // .service(get_account_balance)
+    scope("books")
+        .service(get_files_by_book)
+        .service(upload_file)
 }
 
 fn files_routes() -> Scope {
@@ -38,10 +43,16 @@ fn files_routes() -> Scope {
         .service(get_recent_files)
         .service(view_file)
         .service(get_related_files)
+        .service(download_file)
 }
 
 fn auth_routes() -> Scope {
-    scope("auth").service(login)
+    scope("auth")
+        // Removed old login service - u
+        .service(get_user_permissions)
+        .service(grant_access)
+        .service(revoke_access)
+        .service(get_all_accesses)
 }
 
 fn scholars_routes() -> Scope {
@@ -49,6 +60,18 @@ fn scholars_routes() -> Scope {
         .service(get_scholars)
         .service(get_scholars_by_state)
         .service(get_books_by_scholar)
+}
+
+fn users_routes() -> Scope {
+    scope("users")
+        .service(register)
+        .service(login)
+        .service(get_profile)
+        .service(update_profile)
+        .service(change_password)
+        .service(forgot_password)
+        .service(reset_password)
+        .service(deactivate_account)
 }
 
 fn static_files_routes() -> Scope {
@@ -66,6 +89,7 @@ pub fn sunnah_audio_routes(conf: &mut ServiceConfig) {
             .service(scholars_routes())
             .service(books_routes())
             .service(files_routes())
+            .service(users_routes())
             .service(static_files_routes())
             .service(util_routes()),
     );

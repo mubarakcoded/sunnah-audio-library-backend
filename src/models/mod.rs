@@ -6,3 +6,5 @@ pub mod scholars;
 pub mod states;
 pub mod common;
 pub mod pagination;
+pub mod access;
+pub mod uploads;

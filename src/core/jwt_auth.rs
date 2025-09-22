@@ -2,11 +2,10 @@ use actix_web::{dev::Payload, Error as ActixWebError};
 use actix_web::{error::ErrorUnauthorized, http, FromRequest, HttpMessage, HttpRequest};
 use core::fmt;
 use jsonwebtoken::{decode, DecodingKey, Validation};
-use serde::Serialize;
 use std::future::{ready, Ready};
-use uuid::Uuid;
-
-use crate::models::users::Claims;
+use serde::{Deserialize, Serialize};
+use jsonwebtoken::{encode, EncodingKey, Header};
+use crate::core::AppError;
 
 impl fmt::Display for ErrorResponse {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -20,8 +19,18 @@ struct ErrorResponse {
     message: String,
 }
 
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct JwtClaims {
+    pub sub: String, // user ID
+    pub email: String,
+    pub role: String,
+    pub exp: usize, // expiration time
+}
+
+#[derive(Debug)]
 pub struct JwtMiddleware {
-    pub user_id: Uuid,
+    pub user_id: i32,
+    pub claims: JwtClaims,
 }
 
 impl FromRequest for JwtMiddleware {
@@ -45,13 +54,13 @@ impl FromRequest for JwtMiddleware {
             return ready(Err(ErrorUnauthorized(error)));
         }
 
-        let claims = match decode::<Claims>(
+        let claims = match decode::<JwtClaims>(
             &token.unwrap(),
             &DecodingKey::from_secret("UDAFMIEOLANAOIEWOLADFWEALMOPNVALKAE".to_string().as_ref()),
             &Validation::default(),
         ) {
             Ok(c) => c.claims,
-            Err(ea) => {
+            Err(_ea) => {
                 let error = ErrorResponse {
                     message: "Invalid token".to_string(),
                     success: false,
@@ -60,9 +69,46 @@ impl FromRequest for JwtMiddleware {
             }
         };
 
-        let user_id = claims.sub;
-        req.extensions_mut().insert(user_id.clone());
+        let user_id: i32 = match claims.sub.parse() {
+            Ok(id) => id,
+            Err(_) => {
+                let error = ErrorResponse {
+                    message: "Invalid user ID in token".to_string(),
+                    success: false,
+                };
+                return ready(Err(ErrorUnauthorized(error)));
+            }
+        };
 
-        ready(Ok(JwtMiddleware { user_id }))
+        req.extensions_mut().insert(claims.clone());
+
+        ready(Ok(JwtMiddleware { user_id, claims }))
+    }
+}
+
+const JWT_SECRET: &str = "UDAFMIEOLANAOIEWOLADFWEALMOPNVALKAE";
+
+pub fn generate_jwt_token(claims: &JwtClaims) -> Result<String, AppError> {
+    let header = Header::default();
+    let encoding_key = EncodingKey::from_secret(JWT_SECRET.as_ref());
+    
+    encode(&header, claims, &encoding_key)
+        .map_err(|_| AppError::internal_error("Failed to generate JWT token"))
+}
+
+impl FromRequest for JwtClaims {
+    type Error = ActixWebError;
+    type Future = Ready<Result<Self, Self::Error>>;
+
+    fn from_request(req: &HttpRequest, _: &mut Payload) -> Self::Future {
+        if let Some(claims) = req.extensions().get::<JwtClaims>() {
+            ready(Ok(claims.clone()))
+        } else {
+            let error = ErrorResponse {
+                message: "No authentication token found".to_string(),
+                success: false,
+            };
+            ready(Err(ErrorUnauthorized(error)))
+        }
     }
 }

@@ -28,22 +28,10 @@ redis:
 rabbitmq:
   url: "amqp://guest:guest@localhost:5672"
 
-coralpay_config:
-  base_url: "http://204.8.207.124:8080/coralpay-vas/api"
-  username: "shunkupay"
-  password: "Shunk8pay3"
-  biller_groups: "/create/request"
-  biller_groups_id: "billers/group"
-  biller_groups_slug: "billers/group/slug"
-  biller_packages_id: "packages/biller"
-  biller_packages_slug: "packages/biller/slug"
-  validate_customer: "transactions/customer-lookup"
-  vend_value: "transactions/process-payment"
-
-vtpass_config:
-  base_url: "https://sandbox.vtpass.com/api"
-  api_key: "5466uyhgfrtyujhgtruijhg"
-  public_key: "sdfghjjkhgfdtrhgjtyfghj"
-  secret_key: "ewrtyuiyutcrx43678ytgfderrt"
-  username: "mubarakcoded@gmail.com"
-  password: "Vtp@$$Sandbox"
+smtp:
+  host: "sandbox.smtp.mailtrap.io"
+  port: 2525
+  username: "eb6e9e3571c28d"
+  password: "2ecb04dfb23a0c"
+  from_email: "noreply@muryarsunnah.com"
+  from_name: "Muryar Sunnah"
