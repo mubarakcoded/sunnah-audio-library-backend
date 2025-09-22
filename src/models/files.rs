@@ -1,4 +1,4 @@
-use chrono::{DateTime, Local, NaiveDateTime};
+use chrono::{DateTime, Local};
 use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
 
