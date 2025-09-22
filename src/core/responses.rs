@@ -71,6 +71,22 @@ impl AppError {
             message: Some(error.to_string()),
         }
     }
+
+    pub fn unauthorized(error: impl ToString) -> AppError {
+        AppError {
+            cause: Some(error.to_string()),
+            error_type: AppErrorType::AuthError,
+            message: Some(error.to_string()),
+        }
+    }
+
+    pub fn internal_error(error: impl ToString) -> AppError {
+        AppError {
+            cause: Some(error.to_string()),
+            error_type: AppErrorType::InternalServerError,
+            message: Some(error.to_string()),
+        }
+    }
 }
 
 impl From<anyhow::Error> for AppError {
@@ -152,6 +168,8 @@ impl ResponseError for AppError {
 #[derive(Serialize)]
 pub struct AppSuccessResponse<T> {
     pub success: bool,
+    pub data: T,
     pub message: String,
-    pub data: Option<T>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub pagination: Option<crate::models::pagination::PaginationMeta>,
 }
