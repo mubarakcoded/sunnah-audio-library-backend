@@ -1,11 +1,11 @@
-use crate::core::{AppConfig, RedisHelper};
+use crate::core::{AppConfig, RedisHelper, EmailService};
 use crate::routes::sunnah_audio_routes;
 use actix_cors::Cors;
 use actix_web::http::header;
 use actix_web::{dev::Server, web::Data, App, HttpServer};
 use sqlx::mysql::MySqlPoolOptions;
 use sqlx::postgres::PgPoolOptions;
-use sqlx::{MySqlPool, PgPool};
+use sqlx::MySqlPool;
 use std::net::TcpListener;
 
 pub struct SunnahWebServer {
@@ -21,9 +21,6 @@ impl SunnahWebServer {
             configuration.sunnah_audio_server_config.port
         );
 
-        let pg_pool = PgPoolOptions::new()
-            .acquire_timeout(std::time::Duration::from_secs(5))
-            .connect_lazy_with(configuration.postgres.connect());
 
         let mysql_pool = MySqlPoolOptions::new()
             .acquire_timeout(std::time::Duration::from_secs(5))
@@ -34,7 +31,7 @@ impl SunnahWebServer {
         let listener = TcpListener::bind(address)?;
         let port = listener.local_addr().unwrap().port();
 
-        let server = run(listener, mysql_pool, redis).await?;
+        let server = run(listener, mysql_pool, redis,  configuration.smtp).await?;
 
         Ok(Self { port, server })
     }
@@ -51,11 +48,13 @@ pub async fn run(
     listener: TcpListener,
     mysql_pool: MySqlPool,
     redis_client: redis::Client,
+    smtp_config: crate::core::config::SmtpConfig,
 ) -> Result<Server, anyhow::Error> {
     let mysql_pool = Data::new(mysql_pool);
     let redis_client = Data::new(redis_client);
     let redis_helper = Data::new(RedisHelper::new(redis_client.clone()));
-    let config = crate::core::AppConfig::new().expect("failed to build our appConfig object");
+    let email_service = Data::new(EmailService::new(smtp_config));
+    let _config = crate::core::AppConfig::new().expect("failed to build our appConfig object");
 
     let server = HttpServer::new(move || {
         let cors = Cors::default()
@@ -72,6 +71,7 @@ pub async fn run(
             .app_data(mysql_pool.clone())
             .app_data(redis_client.clone())
             .app_data(redis_helper.clone())
+            .app_data(email_service.clone())
             .wrap(cors)
     })
     .listen(listener)?

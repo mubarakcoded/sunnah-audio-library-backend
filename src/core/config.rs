@@ -12,6 +12,7 @@ pub struct AppConfig {
     pub mysql: MySqlConfig,
     pub redis: RedisConfig,
     pub jwt_auth_config: JwtAuthConfig,
+    pub smtp: SmtpConfig,
 }
 
 impl AppConfig {
@@ -118,6 +119,16 @@ impl MySqlConfig {
 pub struct JwtAuthConfig {
     pub secret: Secret<String>,
     pub token_expiration_time: i64,
+}
+
+#[derive(Deserialize, Clone)]
+pub struct SmtpConfig {
+    pub host: String,
+    pub port: u16,
+    pub username: String,
+    pub password: Secret<String>,
+    pub from_email: String,
+    pub from_name: String,
 }
 
 pub enum Environment {
