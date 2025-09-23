@@ -90,12 +90,19 @@ pub async fn login(
     };
 
     let token = generate_jwt_token(&claims)?;
-    let user_profile = UserProfile::from(user);
+    let user_profile = UserProfile::from(user.clone());
+
+    // Get user subscription status
+    let subscription_status = match crate::db::subscriptions::get_user_subscription_status(&pool, user.id).await {
+        Ok(status) => Some(status),
+        Err(_) => None, // Don't fail login if subscription check fails
+    };
 
     let response = LoginResponse {
         user: user_profile,
         token,
         expires_at,
+        subscription_status,
     };
 
     Ok(HttpResponse::Ok().json(AppSuccessResponse {
