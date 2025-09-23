@@ -13,6 +13,7 @@ pub enum AppErrorType {
     JsonDeserializationError,
     JsonSerializationError,
     JsonParseError,
+    BadRequest,
     PayloadValidationError,
     ApiError { code: String, message: String },
     NetworkError,
@@ -20,10 +21,7 @@ pub enum AppErrorType {
     InternalServerError,
     SerializationError,
     ForbiddenError,
-    PinNotFound,
     HashingFailed,
-    IncorrectPin,
-    DefaultPin,
 }
 
 #[derive(Debug, PartialEq)]
@@ -87,6 +85,14 @@ impl AppError {
             message: Some(error.to_string()),
         }
     }
+
+    pub fn bad_request(error: impl ToString) -> AppError {
+        AppError {
+            cause: Some(error.to_string()),
+            error_type: AppErrorType::BadRequest,
+            message: Some(error.to_string()),
+        }
+    }
 }
 
 impl From<anyhow::Error> for AppError {
@@ -147,13 +153,11 @@ impl ResponseError for AppError {
             | AppErrorType::JsonSerializationError
             | AppErrorType::InternalServerError => StatusCode::INTERNAL_SERVER_ERROR,
             AppErrorType::NotFoundError => StatusCode::NOT_FOUND,
+            AppErrorType::BadRequest => StatusCode::BAD_REQUEST,
             AppErrorType::PayloadValidationError => StatusCode::BAD_REQUEST,
             AppErrorType::ApiError { .. } => StatusCode::BAD_GATEWAY,
             AppErrorType::ForbiddenError => StatusCode::FORBIDDEN,
-            AppErrorType::PinNotFound => StatusCode::NOT_FOUND,
             AppErrorType::HashingFailed => StatusCode::BAD_GATEWAY,
-            AppErrorType::IncorrectPin => StatusCode::FORBIDDEN,
-            AppErrorType::DefaultPin => StatusCode::BAD_REQUEST,
         }
     }
 
