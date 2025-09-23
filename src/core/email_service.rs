@@ -15,6 +15,36 @@ impl EmailService {
         Self { smtp_config }
     }
 
+    fn create_smtp_transport(&self) -> Result<SmtpTransport, AppError> {
+        let credentials = Credentials::new(
+            self.smtp_config.username.clone(),
+            self.smtp_config.password.expose_secret().clone(),
+        );
+
+        // For Mailtrap (port 2525), use STARTTLS instead of direct TLS
+        let mailer = if self.smtp_config.port == 2525 {
+            // Mailtrap configuration - use STARTTLS
+            SmtpTransport::starttls_relay(&self.smtp_config.host)
+                .map_err(|e| {
+                    AppError::internal_error(format!("Failed to create SMTP transport: {}", e))
+                })?
+                .port(self.smtp_config.port)
+                .credentials(credentials)
+                .build()
+        } else {
+            // Standard SMTP configuration
+            SmtpTransport::relay(&self.smtp_config.host)
+                .map_err(|e| {
+                    AppError::internal_error(format!("Failed to create SMTP transport: {}", e))
+                })?
+                .port(self.smtp_config.port)
+                .credentials(credentials)
+                .build()
+        };
+
+        Ok(mailer)
+    }
+
     pub async fn send_otp_email(&self, to_email: &str, otp: &str) -> Result<(), AppError> {
         let from_mailbox = Mailbox::from_str(&format!(
             "{} <{}>",
@@ -25,7 +55,7 @@ impl EmailService {
         let to_mailbox = Mailbox::from_str(to_email)
             .map_err(|e| AppError::internal_error(format!("Invalid to email: {}", e)))?;
 
-        let subject = "Password Reset OTP - Sunnah Audio";
+        let subject = "Password Reset OTP - Muryar Sunnah";
         let body = self.create_otp_email_body(otp);
 
         let email = Message::builder()
@@ -36,16 +66,7 @@ impl EmailService {
             .body(body)
             .map_err(|e| AppError::internal_error(format!("Failed to build email: {}", e)))?;
 
-        let credentials = Credentials::new(
-            self.smtp_config.username.clone(),
-            self.smtp_config.password.expose_secret().clone(),
-        );
-
-        let mailer = SmtpTransport::relay(&self.smtp_config.host)
-            .map_err(|e| AppError::internal_error(format!("Failed to create SMTP transport: {}", e)))?
-            .port(self.smtp_config.port)
-            .credentials(credentials)
-            .build();
+        let mailer = self.create_smtp_transport()?;
 
         match mailer.send(&email) {
             Ok(_) => {
@@ -54,7 +75,51 @@ impl EmailService {
             }
             Err(e) => {
                 tracing::error!("Failed to send OTP email to {}: {}", to_email, e);
-                Err(AppError::internal_error(format!("Failed to send email: {}", e)))
+                Err(AppError::internal_error(format!(
+                    "Failed to send email: {}",
+                    e
+                )))
+            }
+        }
+    }
+
+    pub async fn send_password_reset_confirmation(&self, to_email: &str) -> Result<(), AppError> {
+        let from_mailbox = Mailbox::from_str(&format!(
+            "{} <{}>",
+            self.smtp_config.from_name, self.smtp_config.from_email
+        ))
+        .map_err(|e| AppError::internal_error(format!("Invalid from email: {}", e)))?;
+
+        let to_mailbox = Mailbox::from_str(to_email)
+            .map_err(|e| AppError::internal_error(format!("Invalid to email: {}", e)))?;
+
+        let subject = "Password Reset Successful - Muryar Sunnah";
+        let body = self.create_confirmation_email_body();
+
+        let email = Message::builder()
+            .from(from_mailbox)
+            .to(to_mailbox)
+            .subject(subject)
+            .header(ContentType::TEXT_HTML)
+            .body(body)
+            .map_err(|e| AppError::internal_error(format!("Failed to build email: {}", e)))?;
+
+        let mailer = self.create_smtp_transport()?;
+
+        match mailer.send(&email) {
+            Ok(_) => {
+                tracing::info!(
+                    "Password reset confirmation email sent successfully to: {}",
+                    to_email
+                );
+                Ok(())
+            }
+            Err(e) => {
+                tracing::error!("Failed to send confirmation email to {}: {}", to_email, e);
+                Err(AppError::internal_error(format!(
+                    "Failed to send email: {}",
+                    e
+                )))
             }
         }
     }
@@ -79,7 +144,7 @@ impl EmailService {
             background-color: #f4f4f4;
         }}
         .container {{
-            background-color: #ffffff;
+            background-color: white;
             padding: 30px;
             border-radius: 10px;
             box-shadow: 0 0 10px rgba(0,0,0,0.1);
@@ -96,7 +161,7 @@ impl EmailService {
         }}
         .otp-container {{
             background-color: #f8f9fa;
-            border: 2px solid #2c5530;
+            border: 2px dashed #2c5530;
             border-radius: 8px;
             padding: 20px;
             text-align: center;
@@ -106,7 +171,7 @@ impl EmailService {
             font-size: 32px;
             font-weight: bold;
             color: #2c5530;
-            letter-spacing: 5px;
+            letter-spacing: 8px;
             margin: 10px 0;
         }}
         .warning {{
@@ -117,10 +182,12 @@ impl EmailService {
             margin: 20px 0;
         }}
         .footer {{
-            text-align: center;
             margin-top: 30px;
+            padding-top: 20px;
+            border-top: 1px solid #eee;
             font-size: 12px;
             color: #666;
+            text-align: center;
         }}
         .button {{
             display: inline-block;
@@ -136,102 +203,52 @@ impl EmailService {
 <body>
     <div class="container">
         <div class="header">
-            <div class="logo">🎧 Sunnah Audio</div>
-            <h2>Password Reset Request</h2>
+            <div class="logo">🎧 Muryar Sunnah</div>
+            <h1>Password Reset Request</h1>
         </div>
         
-        <p>Hello,</p>
+        <p>Assalamu Alaikum,</p>
         
-        <p>We received a request to reset your password for your Sunnah Audio account. Use the OTP (One-Time Password) below to reset your password:</p>
+        <p>We received a request to reset your password for your Muryar Sunnah account. Use the OTP code below to complete your password reset:</p>
         
         <div class="otp-container">
             <p><strong>Your OTP Code:</strong></p>
             <div class="otp-code">{}</div>
-            <p><small>This code is valid for 10 minutes only</small></p>
+            <p><small>This code will expire in 10 minutes</small></p>
         </div>
         
         <div class="warning">
             <strong>⚠️ Security Notice:</strong>
-            <ul style="margin: 10px 0; padding-left: 20px;">
-                <li>This OTP will expire in <strong>10 minutes</strong></li>
-                <li>Do not share this code with anyone</li>
+            <ul>
+                <li>Never share this OTP code with anyone</li>
+                <li>Our team will never ask for your OTP via phone or email</li>
                 <li>If you didn't request this reset, please ignore this email</li>
-                <li>For security, this code can only be used once</li>
+                <li>This code expires in 10 minutes for your security</li>
             </ul>
         </div>
         
-        <p>To reset your password:</p>
+        <p><strong>How to use this OTP:</strong></p>
         <ol>
-            <li>Go to the password reset page</li>
-            <li>Enter your email address</li>
-            <li>Enter the OTP code above</li>
+            <li>Go back to the password reset page</li>
+            <li>Enter this OTP code: <strong>{}</strong></li>
             <li>Create your new password</li>
+            <li>Click "Reset Password" to complete the process</li>
         </ol>
         
-        <p>If you have any questions or need assistance, please contact our support team.</p>
-        
-        <p>Best regards,<br>
-        The Sunnah Audio Team</p>
-        
         <div class="footer">
-            <p>This is an automated message. Please do not reply to this email.</p>
-            <p>© 2024 Sunnah Audio. All rights reserved.</p>
+            <p>This is an automated message from Muryar Sunnah. Please do not reply to this email.</p>
+            <p>If you have any questions, please contact our support team.</p>
         </div>
     </div>
 </body>
 </html>
-            "#,
-            otp
+"#,
+            otp, otp
         )
     }
 
-    pub async fn send_password_reset_confirmation(&self, to_email: &str) -> Result<(), AppError> {
-        let from_mailbox = Mailbox::from_str(&format!(
-            "{} <{}>",
-            self.smtp_config.from_name, self.smtp_config.from_email
-        ))
-        .map_err(|e| AppError::internal_error(format!("Invalid from email: {}", e)))?;
-
-        let to_mailbox = Mailbox::from_str(to_email)
-            .map_err(|e| AppError::internal_error(format!("Invalid to email: {}", e)))?;
-
-        let subject = "Password Reset Successful - Sunnah Audio";
-        let body = self.create_password_reset_confirmation_body();
-
-        let email = Message::builder()
-            .from(from_mailbox)
-            .to(to_mailbox)
-            .subject(subject)
-            .header(ContentType::TEXT_HTML)
-            .body(body)
-            .map_err(|e| AppError::internal_error(format!("Failed to build email: {}", e)))?;
-
-        let credentials = Credentials::new(
-            self.smtp_config.username.clone(),
-            self.smtp_config.password.expose_secret().clone(),
-        );
-
-        let mailer = SmtpTransport::relay(&self.smtp_config.host)
-            .map_err(|e| AppError::internal_error(format!("Failed to create SMTP transport: {}", e)))?
-            .port(self.smtp_config.port)
-            .credentials(credentials)
-            .build();
-
-        match mailer.send(&email) {
-            Ok(_) => {
-                tracing::info!("Password reset confirmation email sent to: {}", to_email);
-                Ok(())
-            }
-            Err(e) => {
-                tracing::error!("Failed to send confirmation email to {}: {}", to_email, e);
-                Err(AppError::internal_error(format!("Failed to send email: {}", e)))
-            }
-        }
-    }
-
-    fn create_password_reset_confirmation_body(&self) -> String {
-        format!(
-            r#"
+    fn create_confirmation_email_body(&self) -> String {
+        r#"
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -239,7 +256,7 @@ impl EmailService {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Password Reset Successful</title>
     <style>
-        body {{
+        body {
             font-family: Arial, sans-serif;
             line-height: 1.6;
             color: #333;
@@ -247,81 +264,73 @@ impl EmailService {
             margin: 0 auto;
             padding: 20px;
             background-color: #f4f4f4;
-        }}
-        .container {{
-            background-color: #ffffff;
+        }
+        .container {
+            background-color: white;
             padding: 30px;
             border-radius: 10px;
             box-shadow: 0 0 10px rgba(0,0,0,0.1);
-        }}
-        .header {{
+        }
+        .header {
             text-align: center;
             margin-bottom: 30px;
-        }}
-        .logo {{
+        }
+        .logo {
             font-size: 24px;
             font-weight: bold;
             color: #2c5530;
             margin-bottom: 10px;
-        }}
-        .success {{
-            background-color: #d4edda;
-            border: 1px solid #c3e6cb;
-            border-radius: 5px;
-            padding: 15px;
+        }
+        .success-icon {
+            font-size: 48px;
+            color: #28a745;
             margin: 20px 0;
-            text-align: center;
-        }}
-        .footer {{
-            text-align: center;
+        }
+        .footer {
             margin-top: 30px;
+            padding-top: 20px;
+            border-top: 1px solid #eee;
             font-size: 12px;
             color: #666;
-        }}
+            text-align: center;
+        }
     </style>
 </head>
 <body>
     <div class="container">
         <div class="header">
-            <div class="logo">🎧 Sunnah Audio</div>
-            <h2>Password Reset Successful</h2>
+            <div class="logo">🎧 Muryar Sunnah</div>
+            <div class="success-icon">✅</div>
+            <h1>Password Reset Successful</h1>
         </div>
         
-        <div class="success">
-            <h3>✅ Your password has been successfully reset!</h3>
-        </div>
+        <p>Assalamu Alaikum,</p>
         
-        <p>Hello,</p>
-        
-        <p>This email confirms that your Sunnah Audio account password has been successfully reset.</p>
+        <p>Your password has been successfully reset for your Muryar Sunnah account.</p>
         
         <p><strong>What happens next:</strong></p>
         <ul>
             <li>You can now log in with your new password</li>
-            <li>All active sessions have been terminated for security</li>
-            <li>You may need to log in again on all your devices</li>
+            <li>All your account data and preferences remain unchanged</li>
+            <li>Your active sessions on other devices have been logged out for security</li>
         </ul>
         
-        <p><strong>Security reminder:</strong></p>
+        <p><strong>Security Reminders:</strong></p>
         <ul>
             <li>Keep your password secure and don't share it with anyone</li>
             <li>Use a strong, unique password for your account</li>
-            <li>If you didn't make this change, contact support immediately</li>
+            <li>If you notice any suspicious activity, contact us immediately</li>
         </ul>
         
-        <p>If you have any questions or concerns, please don't hesitate to contact our support team.</p>
-        
-        <p>Best regards,<br>
-        The Sunnah Audio Team</p>
+        <p>If you didn't make this change, please contact our support team immediately.</p>
         
         <div class="footer">
-            <p>This is an automated message. Please do not reply to this email.</p>
-            <p>© 2024 Sunnah Audio. All rights reserved.</p>
+            <p>This is an automated message from Muryar Sunnah. Please do not reply to this email.</p>
+            <p>If you have any questions, please contact our support team.</p>
         </div>
     </div>
 </body>
 </html>
-            "#
-        )
+"#.to_string()
     }
 }
