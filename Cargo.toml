@@ -58,6 +58,11 @@ ureq = "2.5"
 rust_decimal = "1.28.1"
 bigdecimal = { version = "0.3.0", features = ["serde"] }
 lapin = "2.1.1"
+lettre = { version = "0.11", features = [
+    "tokio1-native-tls",
+    "smtp-transport",
+    "builder",
+] }
 
 [dependencies.sqlx]
 version = "0.7.1"
