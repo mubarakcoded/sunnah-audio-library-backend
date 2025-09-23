@@ -121,7 +121,7 @@ pub struct JwtAuthConfig {
     pub token_expiration_time: i64,
 }
 
-#[derive(Deserialize, Clone)]
+#[derive(Deserialize, Clone, Debug)]
 pub struct SmtpConfig {
     pub host: String,
     pub port: u16,

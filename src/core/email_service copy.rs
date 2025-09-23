@@ -4,69 +4,40 @@ use lettre::message::{header::ContentType, Mailbox};
 use lettre::transport::smtp::authentication::Credentials;
 use lettre::{Message, SmtpTransport, Transport};
 use secrecy::ExposeSecret;
-use serde::{Deserialize, Serialize};
 use std::str::FromStr;
-use tokio::sync::mpsc;
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum EmailType {
-    Otp { to_email: String, otp: String },
-    PasswordResetConfirmation { to_email: String },
-}
-
-#[derive(Debug, Clone)]
-pub struct EmailTask {
-    pub email_type: EmailType,
-    pub smtp_config: SmtpConfig,
-}
 
 pub struct EmailService {
     smtp_config: SmtpConfig,
-    sender: mpsc::UnboundedSender<EmailTask>,
 }
 
 impl EmailService {
     pub fn new(smtp_config: SmtpConfig) -> Self {
-        let (sender, mut receiver) = mpsc::unbounded_channel::<EmailTask>();
-
-        // Spawn background email processor
-        tokio::spawn(async move {
-            while let Some(task) = receiver.recv().await {
-                if let Err(e) = Self::process_email_task(task).await {
-                    tracing::error!("Failed to process email task: {}", e);
-                }
-            }
-        });
-
-        Self {
-            smtp_config,
-            sender,
-        }
+        Self { smtp_config }
     }
 
-    fn create_smtp_transport(smtp_config: &SmtpConfig) -> Result<SmtpTransport, AppError> {
+    fn create_smtp_transport(&self) -> Result<SmtpTransport, AppError> {
         let credentials = Credentials::new(
-            smtp_config.username.clone(),
-            smtp_config.password.expose_secret().clone(),
+            self.smtp_config.username.clone(),
+            self.smtp_config.password.expose_secret().clone(),
         );
 
         // For Mailtrap (port 2525), use STARTTLS instead of direct TLS
-        let mailer = if smtp_config.port == 2525 {
+        let mailer = if self.smtp_config.port == 2525 {
             // Mailtrap configuration - use STARTTLS
-            SmtpTransport::starttls_relay(&smtp_config.host)
+            SmtpTransport::starttls_relay(&self.smtp_config.host)
                 .map_err(|e| {
                     AppError::internal_error(format!("Failed to create SMTP transport: {}", e))
                 })?
-                .port(smtp_config.port)
+                .port(self.smtp_config.port)
                 .credentials(credentials)
                 .build()
         } else {
             // Standard SMTP configuration
-            SmtpTransport::relay(&smtp_config.host)
+            SmtpTransport::relay(&self.smtp_config.host)
                 .map_err(|e| {
                     AppError::internal_error(format!("Failed to create SMTP transport: {}", e))
                 })?
-                .port(smtp_config.port)
+                .port(self.smtp_config.port)
                 .credentials(credentials)
                 .build()
         };
@@ -74,65 +45,10 @@ impl EmailService {
         Ok(mailer)
     }
 
-    // Send OTP email in background - returns immediately
     pub async fn send_otp_email(&self, to_email: &str, otp: &str) -> Result<(), AppError> {
-        let task = EmailTask {
-            email_type: EmailType::Otp {
-                to_email: to_email.to_string(),
-                otp: otp.to_string(),
-            },
-            smtp_config: self.smtp_config.clone(),
-        };
-
-        self.sender
-            .send(task)
-            .map_err(|_| AppError::internal_error("Failed to queue email for sending"))?;
-
-        tracing::info!("OTP email queued for background sending to: {}", to_email);
-        Ok(())
-    }
-
-    // Send password reset confirmation in background - returns immediately
-    pub async fn send_password_reset_confirmation(&self, to_email: &str) -> Result<(), AppError> {
-        let task = EmailTask {
-            email_type: EmailType::PasswordResetConfirmation {
-                to_email: to_email.to_string(),
-            },
-            smtp_config: self.smtp_config.clone(),
-        };
-
-        self.sender
-            .send(task)
-            .map_err(|_| AppError::internal_error("Failed to queue email for sending"))?;
-
-        tracing::info!(
-            "Password reset confirmation email queued for background sending to: {}",
-            to_email
-        );
-        Ok(())
-    }
-
-    // Background email processor
-    async fn process_email_task(task: EmailTask) -> Result<(), AppError> {
-        match task.email_type {
-            EmailType::Otp { to_email, otp } => {
-                Self::send_otp_email_sync(&task.smtp_config, &to_email, &otp).await
-            }
-            EmailType::PasswordResetConfirmation { to_email } => {
-                Self::send_confirmation_email_sync(&task.smtp_config, &to_email).await
-            }
-        }
-    }
-
-    // Synchronous OTP email sending (for background processing)
-    async fn send_otp_email_sync(
-        smtp_config: &SmtpConfig,
-        to_email: &str,
-        otp: &str,
-    ) -> Result<(), AppError> {
         let from_mailbox = Mailbox::from_str(&format!(
             "{} <{}>",
-            smtp_config.from_name, smtp_config.from_email
+            self.smtp_config.from_name, self.smtp_config.from_email
         ))
         .map_err(|e| AppError::internal_error(format!("Invalid from email: {}", e)))?;
 
@@ -140,7 +56,7 @@ impl EmailService {
             .map_err(|e| AppError::internal_error(format!("Invalid to email: {}", e)))?;
 
         let subject = "Password Reset OTP - Muryar Sunnah";
-        let body = Self::create_otp_email_body(otp);
+        let body = self.create_otp_email_body(otp);
 
         let email = Message::builder()
             .from(from_mailbox)
@@ -150,15 +66,15 @@ impl EmailService {
             .body(body)
             .map_err(|e| AppError::internal_error(format!("Failed to build email: {}", e)))?;
 
-        let mailer = Self::create_smtp_transport(smtp_config)?;
+        let mailer = self.create_smtp_transport()?;
 
         match mailer.send(&email) {
             Ok(_) => {
-                tracing::info!("✅ OTP email sent successfully to: {}", to_email);
+                tracing::info!("OTP email sent successfully to: {}", to_email);
                 Ok(())
             }
             Err(e) => {
-                tracing::error!("❌ Failed to send OTP email to {}: {}", to_email, e);
+                tracing::error!("Failed to send OTP email to {}: {}", to_email, e);
                 Err(AppError::internal_error(format!(
                     "Failed to send email: {}",
                     e
@@ -167,14 +83,10 @@ impl EmailService {
         }
     }
 
-    // Synchronous confirmation email sending (for background processing)
-    async fn send_confirmation_email_sync(
-        smtp_config: &SmtpConfig,
-        to_email: &str,
-    ) -> Result<(), AppError> {
+    pub async fn send_password_reset_confirmation(&self, to_email: &str) -> Result<(), AppError> {
         let from_mailbox = Mailbox::from_str(&format!(
             "{} <{}>",
-            smtp_config.from_name, smtp_config.from_email
+            self.smtp_config.from_name, self.smtp_config.from_email
         ))
         .map_err(|e| AppError::internal_error(format!("Invalid from email: {}", e)))?;
 
@@ -182,7 +94,7 @@ impl EmailService {
             .map_err(|e| AppError::internal_error(format!("Invalid to email: {}", e)))?;
 
         let subject = "Password Reset Successful - Muryar Sunnah";
-        let body = Self::create_confirmation_email_body();
+        let body = self.create_confirmation_email_body();
 
         let email = Message::builder()
             .from(from_mailbox)
@@ -192,22 +104,18 @@ impl EmailService {
             .body(body)
             .map_err(|e| AppError::internal_error(format!("Failed to build email: {}", e)))?;
 
-        let mailer = Self::create_smtp_transport(smtp_config)?;
+        let mailer = self.create_smtp_transport()?;
 
         match mailer.send(&email) {
             Ok(_) => {
                 tracing::info!(
-                    "✅ Password reset confirmation email sent successfully to: {}",
+                    "Password reset confirmation email sent successfully to: {}",
                     to_email
                 );
                 Ok(())
             }
             Err(e) => {
-                tracing::error!(
-                    "❌ Failed to send confirmation email to {}: {}",
-                    to_email,
-                    e
-                );
+                tracing::error!("Failed to send confirmation email to {}: {}", to_email, e);
                 Err(AppError::internal_error(format!(
                     "Failed to send email: {}",
                     e
@@ -216,7 +124,7 @@ impl EmailService {
         }
     }
 
-    fn create_otp_email_body(otp: &str) -> String {
+    fn create_otp_email_body(&self, otp: &str) -> String {
         format!(
             r#"
 <!DOCTYPE html>
@@ -339,7 +247,7 @@ impl EmailService {
         )
     }
 
-    fn create_confirmation_email_body() -> String {
+    fn create_confirmation_email_body(&self) -> String {
         r#"
 <!DOCTYPE html>
 <html lang="en">
