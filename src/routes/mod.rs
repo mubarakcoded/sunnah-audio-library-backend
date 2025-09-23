@@ -10,6 +10,7 @@ use states::get_states;
 use permissions::{get_user_permissions, grant_access, revoke_access, get_all_accesses};
 use uploads::{upload_file, download_file};
 use users::{register, login, get_profile, update_profile, change_password, forgot_password, reset_password, deactivate_account};
+use subscriptions::{get_subscription_plans, get_user_subscriptions, get_subscription_status, get_active_subscription, create_subscription, get_pending_subscriptions, verify_subscription};
 mod books;
 mod files;
 mod health_check;
@@ -19,10 +20,9 @@ mod states;
 mod permissions;
 mod uploads;
 mod users;
+mod subscriptions;
 
-// Removed old auth login import - using new user authentication system
 use crate::routes::health_check::*;
-// use self::vas::{cable_networks::*, mobile_networks::*, data_plans::*};
 const IMAGES_DIR: &str = "/home/mubarak/Documents/my-documents/muryar_sunnah/web/images";
 
 fn util_routes() -> Scope {
@@ -74,6 +74,17 @@ fn users_routes() -> Scope {
         .service(deactivate_account)
 }
 
+fn subscriptions_routes() -> Scope {
+    scope("subscriptions")
+        .service(get_subscription_plans)
+        .service(get_user_subscriptions)
+        .service(get_subscription_status)
+        .service(get_active_subscription)
+        .service(create_subscription)
+        .service(get_pending_subscriptions)
+        .service(verify_subscription)
+}
+
 fn static_files_routes() -> Scope {
     scope("static")
         // Serve album images from `/static/images/`
@@ -90,6 +101,7 @@ pub fn sunnah_audio_routes(conf: &mut ServiceConfig) {
             .service(books_routes())
             .service(files_routes())
             .service(users_routes())
+            .service(subscriptions_routes())
             .service(static_files_routes())
             .service(util_routes()),
     );

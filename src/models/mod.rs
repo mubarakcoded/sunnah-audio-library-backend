@@ -8,3 +8,4 @@ pub mod common;
 pub mod pagination;
 pub mod access;
 pub mod uploads;
+pub mod subscriptions;
