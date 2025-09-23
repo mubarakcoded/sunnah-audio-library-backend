@@ -1,10 +1,10 @@
-use crate::core::{AppConfig, RedisHelper, EmailService};
+use crate::core::{AppConfig, EmailService, RedisHelper};
 use crate::routes::sunnah_audio_routes;
 use actix_cors::Cors;
 use actix_web::http::header;
 use actix_web::{dev::Server, web::Data, App, HttpServer};
 use sqlx::mysql::MySqlPoolOptions;
-use sqlx::postgres::PgPoolOptions;
+
 use sqlx::MySqlPool;
 use std::net::TcpListener;
 
@@ -21,7 +21,6 @@ impl SunnahWebServer {
             configuration.sunnah_audio_server_config.port
         );
 
-
         let mysql_pool = MySqlPoolOptions::new()
             .acquire_timeout(std::time::Duration::from_secs(5))
             .connect_lazy_with(configuration.mysql.connect());
@@ -31,7 +30,7 @@ impl SunnahWebServer {
         let listener = TcpListener::bind(address)?;
         let port = listener.local_addr().unwrap().port();
 
-        let server = run(listener, mysql_pool, redis,  configuration.smtp).await?;
+        let server = run(listener, mysql_pool, redis, configuration.smtp).await?;
 
         Ok(Self { port, server })
     }
