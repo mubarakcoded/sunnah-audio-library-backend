@@ -38,16 +38,21 @@ impl FromRequest for JwtMiddleware {
     type Future = Ready<Result<Self, Self::Error>>;
 
     fn from_request(req: &HttpRequest, _: &mut Payload) -> Self::Future {
-        //  let data = req.app_data::<web::Data<AppParameters>>().unwrap();
-
         let token = req
             .headers()
             .get(http::header::AUTHORIZATION)
-            .map(|value| value.to_str().unwrap().split_at(7).1.to_string());
+            .and_then(|value| value.to_str().ok())
+            .and_then(|auth_header| {
+                if auth_header.starts_with("Bearer ") {
+                    Some(auth_header[7..].to_string())
+                } else {
+                    None
+                }
+            });
 
         if token.is_none() {
             let error = ErrorResponse {
-                message: "Invalid login credentials".to_string(),
+                message: "No authentication token found".to_string(),
                 success: false,
             };
 
@@ -101,14 +106,47 @@ impl FromRequest for JwtClaims {
     type Future = Ready<Result<Self, Self::Error>>;
 
     fn from_request(req: &HttpRequest, _: &mut Payload) -> Self::Future {
+        // First check if claims are already in extensions (from middleware)
         if let Some(claims) = req.extensions().get::<JwtClaims>() {
-            ready(Ok(claims.clone()))
-        } else {
+            return ready(Ok(claims.clone()));
+        }
+
+        // If not in extensions, parse the token directly
+        let token = req
+            .headers()
+            .get(http::header::AUTHORIZATION)
+            .and_then(|value| value.to_str().ok())
+            .and_then(|auth_header| {
+                if auth_header.starts_with("Bearer ") {
+                    Some(auth_header[7..].to_string())
+                } else {
+                    None
+                }
+            });
+
+        if token.is_none() {
             let error = ErrorResponse {
                 message: "No authentication token found".to_string(),
                 success: false,
             };
-            ready(Err(ErrorUnauthorized(error)))
+            return ready(Err(ErrorUnauthorized(error)));
         }
+
+        let claims = match decode::<JwtClaims>(
+            &token.unwrap(),
+            &DecodingKey::from_secret(JWT_SECRET.as_ref()),
+            &Validation::default(),
+        ) {
+            Ok(c) => c.claims,
+            Err(_) => {
+                let error = ErrorResponse {
+                    message: "Invalid token".to_string(),
+                    success: false,
+                };
+                return ready(Err(ErrorUnauthorized(error)));
+            }
+        };
+
+        ready(Ok(claims))
     }
 }
