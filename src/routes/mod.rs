@@ -11,6 +11,10 @@ use permissions::{get_user_permissions, grant_access, revoke_access, get_all_acc
 use uploads::{upload_file, download_file};
 use users::{register, login, get_profile, update_profile, change_password, forgot_password, reset_password, deactivate_account};
 use subscriptions::{get_subscription_plans, get_user_subscriptions, get_subscription_status, get_active_subscription, create_subscription, get_pending_subscriptions, verify_subscription};
+use follows::{follow_scholar, unfollow_scholar, update_follow_settings, get_my_followed_scholars, check_follow_status};
+use play_history::{record_play, get_my_play_history, get_most_played_files, clear_play_history, get_file_play_stats};
+use playlists::{create_playlist, get_my_playlists, get_public_playlists, get_playlist, update_playlist, delete_playlist, add_file_to_playlist, remove_file_from_playlist, get_playlist_files};
+use file_interactions::{report_file, get_pending_reports, resolve_report, like_file, unlike_file, get_file_likes, check_file_like_status, create_comment, get_file_comments, update_comment, delete_comment, get_file_download_stats, get_my_download_history};
 mod books;
 mod files;
 mod health_check;
@@ -21,6 +25,10 @@ mod permissions;
 mod uploads;
 mod users;
 mod subscriptions;
+mod follows;
+mod play_history;
+mod playlists;
+mod file_interactions;
 
 use crate::routes::health_check::*;
 const IMAGES_DIR: &str = "/home/mubarak/Documents/my-documents/muryar_sunnah/web/images";
@@ -85,6 +93,54 @@ fn subscriptions_routes() -> Scope {
         .service(verify_subscription)
 }
 
+fn follows_routes() -> Scope {
+    scope("")
+        .service(follow_scholar)
+        .service(unfollow_scholar)
+        .service(update_follow_settings)
+        .service(get_my_followed_scholars)
+        .service(check_follow_status)
+}
+
+fn play_history_routes() -> Scope {
+    scope("")
+        .service(record_play)
+        .service(get_my_play_history)
+        .service(get_most_played_files)
+        .service(clear_play_history)
+        .service(get_file_play_stats)
+}
+
+fn playlists_routes() -> Scope {
+    scope("")
+        .service(create_playlist)
+        .service(get_my_playlists)
+        .service(get_public_playlists)
+        .service(get_playlist)
+        .service(update_playlist)
+        .service(delete_playlist)
+        .service(add_file_to_playlist)
+        .service(remove_file_from_playlist)
+        .service(get_playlist_files)
+}
+
+fn file_interactions_routes() -> Scope {
+    scope("")
+        .service(report_file)
+        .service(get_pending_reports)
+        .service(resolve_report)
+        .service(like_file)
+        .service(unlike_file)
+        .service(get_file_likes)
+        .service(check_file_like_status)
+        .service(create_comment)
+        .service(get_file_comments)
+        .service(update_comment)
+        .service(delete_comment)
+        .service(get_file_download_stats)
+        .service(get_my_download_history)
+}
+
 fn static_files_routes() -> Scope {
     scope("static")
         // Serve album images from `/static/images/`
@@ -102,6 +158,10 @@ pub fn sunnah_audio_routes(conf: &mut ServiceConfig) {
             .service(files_routes())
             .service(users_routes())
             .service(subscriptions_routes())
+            .service(follows_routes())
+            .service(play_history_routes())
+            .service(playlists_routes())
+            .service(file_interactions_routes())
             .service(static_files_routes())
             .service(util_routes()),
     );

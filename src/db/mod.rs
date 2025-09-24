@@ -6,3 +6,7 @@ pub mod files;
 pub mod access;
 pub mod uploads;
 pub mod subscriptions;
+pub mod follows;
+pub mod play_history;
+pub mod playlists;
+pub mod file_interactions;
