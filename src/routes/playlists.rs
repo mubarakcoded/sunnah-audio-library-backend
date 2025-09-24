@@ -3,6 +3,7 @@ use crate::core::AppError;
 use crate::core::{AppErrorResponse, AppSuccessResponse};
 use crate::db::playlists;
 use crate::models::playlists::{CreatePlaylistRequest, UpdatePlaylistRequest, AddToPlaylistRequest};
+use crate::models::pagination::PaginationQuery;
 use actix_web::{delete, get, post, put, web, HttpResponse, Result};
 use sqlx::MySqlPool;
 
@@ -49,14 +50,16 @@ pub async fn get_my_playlists(
     }))
 }
 
-#[tracing::instrument(name = "Get Public Playlists", skip(pool, query))]
+#[tracing::instrument(name = "Get Public Playlists", skip(pool, pagination))]
 #[get("/playlists/public")]
 pub async fn get_public_playlists(
     pool: web::Data<MySqlPool>,
-    query: web::Query<crate::models::pagination::PaginationParams>,
+    pagination: web::Query<PaginationQuery>,
 ) -> Result<HttpResponse, AppError> {
-    let limit = query.limit.unwrap_or(20);
-    let offset = query.offset.unwrap_or(0);
+    let mut pagination = pagination.into_inner();
+    pagination.validate();
+    let limit = pagination.per_page as i32;
+    let offset = pagination.offset() as i32;
 
     let playlists_list = playlists::get_public_playlists(&pool, Some(limit), Some(offset)).await?;
 

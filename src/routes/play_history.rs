@@ -2,7 +2,7 @@ use crate::core::jwt_auth::JwtClaims;
 use crate::core::AppError;
 use crate::core::{AppErrorResponse, AppSuccessResponse};
 use crate::db::play_history;
-use crate::models::pagination::PaginationInfo;
+use crate::models::pagination::PaginationQuery;
 use crate::models::play_history::RecordPlayRequest;
 use actix_web::{delete, get, post, web, HttpResponse, Result};
 use sqlx::MySqlPool;
@@ -29,20 +29,22 @@ pub async fn record_play(
     }))
 }
 
-#[tracing::instrument(name = "Get User Play History", skip(pool, claims, query))]
+#[tracing::instrument(name = "Get User Play History", skip(pool, claims, pagination))]
 #[get("/play-history")]
 pub async fn get_my_play_history(
     pool: web::Data<MySqlPool>,
     claims: JwtClaims,
-    query: web::Query<crate::models::pagination::PaginationParams>,
+    pagination: web::Query<PaginationQuery>,
 ) -> Result<HttpResponse, AppError> {
     let user_id: i32 = claims
         .sub
         .parse()
         .map_err(|_| AppError::unauthorized("Invalid user ID in token"))?;
 
-    let limit = query.limit.unwrap_or(50);
-    let offset = query.offset.unwrap_or(0);
+    let mut pagination = pagination.into_inner();
+    pagination.validate();
+    let limit = pagination.per_page as i32;
+    let offset = pagination.offset() as i32;
 
     let history = play_history::get_user_play_history(&pool, user_id, Some(limit), Some(offset)).await?;
 

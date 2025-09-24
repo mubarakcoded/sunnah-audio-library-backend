@@ -6,6 +6,7 @@ use crate::models::file_interactions::{
     CreateReportRequest, ResolveReportRequest, LikeFileRequest,
     CreateCommentRequest, UpdateCommentRequest
 };
+use crate::models::pagination::PaginationQuery;
 use actix_web::{delete, get, post, put, web, HttpResponse, Result};
 use sqlx::MySqlPool;
 
@@ -32,20 +33,22 @@ pub async fn report_file(
     }))
 }
 
-#[tracing::instrument(name = "Get Pending Reports", skip(pool, claims, query))]
+#[tracing::instrument(name = "Get Pending Reports", skip(pool, claims, pagination))]
 #[get("/admin/reports/pending")]
 pub async fn get_pending_reports(
     pool: web::Data<MySqlPool>,
     claims: JwtClaims,
-    query: web::Query<crate::models::pagination::PaginationParams>,
+    pagination: web::Query<PaginationQuery>,
 ) -> Result<HttpResponse, AppError> {
     // Check if user is admin
     if claims.role != "admin" && claims.role != "manager" {
         return Err(AppError::forbidden_error("Access denied"));
     }
 
-    let limit = query.limit.unwrap_or(50);
-    let offset = query.offset.unwrap_or(0);
+    let mut pagination = pagination.into_inner();
+    pagination.validate();
+    let limit = pagination.per_page as i32;
+    let offset = pagination.offset() as i32;
 
     let reports = file_interactions::get_pending_reports(&pool, Some(limit), Some(offset)).await?;
 
@@ -285,20 +288,22 @@ pub async fn get_file_download_stats(
     }))
 }
 
-#[tracing::instrument(name = "Get User Download History", skip(pool, claims, query))]
+#[tracing::instrument(name = "Get User Download History", skip(pool, claims, pagination))]
 #[get("/my-downloads")]
 pub async fn get_my_download_history(
     pool: web::Data<MySqlPool>,
     claims: JwtClaims,
-    query: web::Query<crate::models::pagination::PaginationParams>,
+    pagination: web::Query<PaginationQuery>,
 ) -> Result<HttpResponse, AppError> {
     let user_id: i32 = claims
         .sub
         .parse()
         .map_err(|_| AppError::unauthorized("Invalid user ID in token"))?;
 
-    let limit = query.limit.unwrap_or(50);
-    let offset = query.offset.unwrap_or(0);
+    let mut pagination = pagination.into_inner();
+    pagination.validate();
+    let limit = pagination.per_page as i32;
+    let offset = pagination.offset() as i32;
 
     let downloads = file_interactions::get_user_download_history(&pool, user_id, Some(limit), Some(offset)).await?;
 
