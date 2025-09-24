@@ -6,9 +6,6 @@ use actix_web::{
 use sqlx::MySqlPool;
 use tracing::instrument;
 
-// const BANK_CODE: &str = "SHUNKU";
-// const BANK_NAME: &str = "009291";
-
 use crate::{
     core::{AppError, AppErrorType, AppSuccessResponse},
     db::files,

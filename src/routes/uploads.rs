@@ -10,7 +10,7 @@ use uuid::Uuid;
 
 use crate::{
     core::{jwt_auth::JwtMiddleware, AppError, AppErrorType, AppSuccessResponse},
-    db::{access, uploads},
+    db::{access, uploads, file_interactions, subscriptions},
 };
 
 const UPLOAD_DIR: &str = "./uploads";
@@ -249,12 +249,13 @@ pub async fn upload_file(
     }))
 }
 
-#[instrument(name = "Download File", skip(pool))]
+#[instrument(name = "Download File", skip(pool, req))]
 #[get("/files/{file_id}/download")]
 pub async fn download_file(
     pool: web::Data<MySqlPool>,
     auth: JwtMiddleware,
     file_id: web::Path<i32>,
+    req: actix_web::HttpRequest,
 ) -> Result<impl Responder, AppError> {
     let file_id = file_id.into_inner();
 
@@ -290,6 +291,37 @@ pub async fn download_file(
             }
         })?;
 
+    // Get user's active subscription (if any)
+    let subscription_id = match subscriptions::get_user_active_subscription(&pool, auth.user_id).await {
+        Ok(Some(subscription)) => Some(subscription.id),
+        _ => None,
+    };
+
+    // Extract client IP and user agent
+    let client_ip = req
+        .connection_info()
+        .realip_remote_addr()
+        .map(|ip| ip.to_string());
+    
+    let user_agent = req
+        .headers()
+        .get("user-agent")
+        .and_then(|ua| ua.to_str().ok())
+        .map(|ua| ua.to_string());
+
+    // Log the download
+    if let Err(e) = file_interactions::log_file_download(
+        &pool,
+        auth.user_id,
+        subscription_id,
+        file_id,
+        client_ip,
+        user_agent,
+    ).await {
+        tracing::warn!("Failed to log file download: {}", e);
+        // Don't fail the download if logging fails
+    }
+
     // Read file from disk
     let file_bytes = fs::read(&file_info.file_path).map_err(|e| {
         tracing::error!("Failed to read file {}: {:?}", file_info.file_path, e);
@@ -299,6 +331,8 @@ pub async fn download_file(
             error_type: AppErrorType::NotFoundError,
         }
     })?;
+
+    tracing::info!("File {} downloaded by user {}", file_id, auth.user_id);
 
     Ok(HttpResponse::Ok()
         .content_type(file_info.content_type.as_str())
