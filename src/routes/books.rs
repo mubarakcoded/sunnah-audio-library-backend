@@ -50,3 +50,63 @@ pub async fn get_books_by_scholar(
         pagination: Some(pagination_meta),
     }))
 }
+#[instrument(name = "Get Book Details", skip(pool))]
+#[get("/{book_id}")]
+pub async fn get_book_details(
+    pool: web::Data<MySqlPool>,
+    book_id: web::Path<i32>,
+) -> Result<impl Responder, AppError> {
+    let book_id = book_id.into_inner();
+
+    let book_details = books::get_book_details(pool.get_ref(), book_id)
+        .await
+        .map_err(|e| {
+            tracing::error!("Failed to fetch book details: {:?}", e);
+            match e.error_type {
+                AppErrorType::NotFoundError => AppError {
+                    message: Some("Book not found".to_string()),
+                    cause: Some(e.to_string()),
+                    error_type: AppErrorType::NotFoundError,
+                },
+                _ => AppError {
+                    message: Some("Failed to fetch book details".to_string()),
+                    cause: Some(e.to_string()),
+                    error_type: AppErrorType::InternalServerError,
+                }
+            }
+        })?;
+
+    Ok(HttpResponse::Ok().json(AppSuccessResponse {
+        success: true,
+        message: "Book details retrieved successfully".to_string(),
+        data: Some(book_details),
+        pagination: None,
+    }))
+}
+
+#[instrument(name = "Get Book Statistics", skip(pool))]
+#[get("/{book_id}/statistics")]
+pub async fn get_book_statistics(
+    pool: web::Data<MySqlPool>,
+    book_id: web::Path<i32>,
+) -> Result<impl Responder, AppError> {
+    let book_id = book_id.into_inner();
+
+    let statistics = books::get_book_statistics(pool.get_ref(), book_id)
+        .await
+        .map_err(|e| {
+            tracing::error!("Failed to fetch book statistics: {:?}", e);
+            AppError {
+                message: Some("Failed to fetch book statistics".to_string()),
+                cause: Some(e.to_string()),
+                error_type: AppErrorType::InternalServerError,
+            }
+        })?;
+
+    Ok(HttpResponse::Ok().json(AppSuccessResponse {
+        success: true,
+        message: "Book statistics retrieved successfully".to_string(),
+        data: Some(statistics),
+        pagination: None,
+    }))
+}

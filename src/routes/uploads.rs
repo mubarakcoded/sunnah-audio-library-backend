@@ -17,7 +17,7 @@ const UPLOAD_DIR: &str = "./uploads";
 const MAX_FILE_SIZE: usize = 100 * 1024 * 1024; // 100MB
 
 #[instrument(name = "Upload File", skip(pool, payload))]
-#[post("/books/{book_id}/upload")]
+#[post("/{book_id}/upload")]
 pub async fn upload_file(
     pool: web::Data<MySqlPool>,
     auth: JwtMiddleware,
