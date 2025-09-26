@@ -58,11 +58,11 @@ pub async fn get_file_report_by_id(
         file_id: row.file_id,
         reason: row.reason,
         description: row.description,
-        status: row.status.unwrap_or_else(|| "pending".to_string()),
+        status: row.status,
         admin_notes: row.admin_notes,
-        resolved_by: row.resolved_by,
-        created_at: row.created_at.unwrap().naive_utc(),
-        resolved_at: row.resolved_at.map(|dt| dt.naive_utc()),
+        resolved_by: Some(row.resolved_by),
+        created_at: row.created_at.naive_utc(),
+        resolved_at: Some(row.resolved_at.naive_utc()),
     })
 }
 
@@ -125,11 +125,11 @@ pub async fn get_pending_reports(
             file_id: row.file_id,
             reason: row.reason,
             description: row.description,
-            status: row.status.unwrap_or_else(|| "pending".to_string()),
+            status: row.status,
             admin_notes: row.admin_notes,
-            resolved_by: row.resolved_by,
-            created_at: row.created_at.unwrap().naive_utc(),
-            resolved_at: row.resolved_at.map(|dt| dt.naive_utc()),
+            resolved_by: Some(row.resolved_by),
+            created_at: row.created_at.naive_utc(),
+            resolved_at: Some(row.resolved_at.naive_utc()),
         })
         .collect();
 

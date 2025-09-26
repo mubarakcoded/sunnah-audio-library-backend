@@ -38,8 +38,8 @@ pub async fn get_all_subscription_plans(
             features: row.features,
             is_active: row.is_active != 0,
             sort_order: row.sort_order.unwrap_or(0),
-            created_at: row.created_at.unwrap().naive_utc(),
-            updated_at: row.updated_at.unwrap().naive_utc(),
+            created_at: row.created_at.naive_utc(),
+            updated_at: row.updated_at.naive_utc(),
         })
         .collect();
 
@@ -76,8 +76,8 @@ pub async fn get_subscription_plan_by_id(
         features: row.features,
         is_active: row.is_active != 0,
         sort_order: row.sort_order.unwrap_or(0),
-        created_at: row.created_at.unwrap().naive_utc(),
-        updated_at: row.updated_at.unwrap().naive_utc(),
+        created_at: row.created_at.naive_utc(),
+        updated_at: row.updated_at.naive_utc(),
     })
 }
 
@@ -147,8 +147,8 @@ pub async fn get_user_subscription_by_id(
         payment_currency: row.payment_currency,
         payment_date: row.payment_date,
         notes: row.notes,
-        created_at: row.created_at.unwrap().naive_utc(),
-        updated_at: row.updated_at.unwrap().naive_utc(),
+        created_at: row.created_at.naive_utc(),
+        updated_at: row.updated_at.naive_utc(),
     })
 }
 
@@ -187,8 +187,8 @@ pub async fn get_user_subscriptions(
             payment_currency: row.payment_currency,
             payment_date: row.payment_date,
             notes: row.notes,
-            created_at: row.created_at.unwrap().naive_utc(),
-            updated_at: row.updated_at.unwrap().naive_utc(),
+            created_at: row.created_at.naive_utc(),
+            updated_at: row.updated_at.naive_utc(),
         })
         .collect();
 
@@ -279,8 +279,8 @@ pub async fn get_user_active_subscription(
             payment_currency: row.payment_currency,
             payment_date: row.payment_date,
             notes: row.notes,
-            created_at: row.created_at.unwrap().naive_utc(),
-            updated_at: row.updated_at.unwrap().naive_utc(),
+            created_at: row.created_at.naive_utc(),
+            updated_at: row.updated_at.naive_utc(),
         }))
     } else {
         Ok(None)
@@ -384,8 +384,8 @@ pub async fn get_pending_subscriptions(
             payment_currency: row.payment_currency,
             payment_date: row.payment_date,
             notes: row.notes,
-            created_at: row.created_at.unwrap().naive_utc(),
-            updated_at: row.updated_at.unwrap().naive_utc(),
+            created_at: row.created_at.naive_utc(),
+            updated_at: row.updated_at.naive_utc(),
         })
         .collect();
 

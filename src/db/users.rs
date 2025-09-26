@@ -1,14 +1,11 @@
 use crate::core::AppError;
-use crate::models::users::{User, RegisterRequest, UpdateProfileRequest};
-use sqlx::MySqlPool;
-use argon2::{Argon2, PasswordHash, PasswordHasher, PasswordVerifier};
+use crate::models::users::{RegisterRequest, UpdateProfileRequest, User};
 use argon2::password_hash::{rand_core::OsRng, SaltString};
+use argon2::{Argon2, PasswordHash, PasswordHasher, PasswordVerifier};
 use chrono::Utc;
+use sqlx::MySqlPool;
 
-pub async fn create_user(
-    pool: &MySqlPool,
-    request: &RegisterRequest,
-) -> Result<User, AppError> {
+pub async fn create_user(pool: &MySqlPool, request: &RegisterRequest) -> Result<User, AppError> {
     let now = Utc::now().naive_utc();
     
     // Hash the password
@@ -44,16 +41,11 @@ pub async fn create_user(
     get_user_by_id(pool, user_id).await
 }
 
-pub async fn get_user_by_email(
-    pool: &MySqlPool,
-    email: &str,
-) -> Result<User, AppError> {
-    let user = sqlx::query_as!(
-        User,
+pub async fn get_user_by_email(pool: &MySqlPool, email: &str) -> Result<User, AppError> {
+    let row = sqlx::query!(
         r#"
         SELECT id, name, email, address, phone, role, password, status, 
-               created_at as "created_at: chrono::NaiveDateTime", 
-               updated_at as "updated_at: chrono::NaiveDateTime"
+               created_at, updated_at
         FROM tbl_users
         WHERE email = ? AND status = 1
         "#,
@@ -63,19 +55,25 @@ pub async fn get_user_by_email(
     .await
     .map_err(AppError::db_error)?;
 
-    Ok(user)
+    Ok(User {
+        id: row.id,
+        name: row.name,
+        email: row.email,
+        address: row.address,
+        phone: row.phone,
+        role: row.role,
+        password: row.password,
+        status: row.status,
+        created_at: row.created_at.naive_utc(),
+        updated_at: row.updated_at.naive_utc(),
+    })
 }
 
-pub async fn get_user_by_id(
-    pool: &MySqlPool,
-    user_id: i32,
-) -> Result<User, AppError> {
-    let user = sqlx::query_as!(
-        User,
+pub async fn get_user_by_id(pool: &MySqlPool, user_id: i32) -> Result<User, AppError> {
+    let row = sqlx::query!(
         r#"
         SELECT id, name, email, address, phone, role, password, status, 
-               created_at as "created_at: chrono::NaiveDateTime", 
-               updated_at as "updated_at: chrono::NaiveDateTime"
+               created_at, updated_at
         FROM tbl_users
         WHERE id = ? AND status = 1
         "#,
@@ -85,18 +83,28 @@ pub async fn get_user_by_id(
     .await
     .map_err(AppError::db_error)?;
 
-    Ok(user)
+    Ok(User {
+        id: row.id,
+        name: row.name,
+        email: row.email,
+        address: row.address,
+        phone: row.phone,
+        role: row.role,
+        password: row.password,
+        status: row.status,
+        created_at: row.created_at.naive_utc(),
+        updated_at: row.updated_at.naive_utc(),
+    })
 }
 
-pub async fn verify_password(
-    password: &str,
-    hash: &str,
-) -> Result<bool, AppError> {
-    let parsed_hash = PasswordHash::new(hash)
-        .map_err(|_| AppError::internal_error("Invalid password"))?;
-    
+pub async fn verify_password(password: &str, hash: &str) -> Result<bool, AppError> {
+    let parsed_hash =
+        PasswordHash::new(hash).map_err(|_| AppError::internal_error("Invalid password"))?;
+
     let argon2 = Argon2::default();
-    Ok(argon2.verify_password(password.as_bytes(), &parsed_hash).is_ok())
+    Ok(argon2
+        .verify_password(password.as_bytes(), &parsed_hash)
+        .is_ok())
 }
 
 pub async fn update_user_profile(
@@ -110,7 +118,10 @@ pub async fn update_user_profile(
     let current_user = get_user_by_id(pool, user_id).await?;
 
     let name = request.name.as_deref().unwrap_or(&current_user.name);
-    let address = request.address.as_deref().or(current_user.address.as_deref());
+    let address = request
+        .address
+        .as_deref()
+        .or(current_user.address.as_deref());
     let phone = request.phone.as_deref().or(current_user.phone.as_deref());
 
     sqlx::query!(
@@ -138,7 +149,7 @@ pub async fn change_user_password(
     new_password: &str,
 ) -> Result<(), AppError> {
     let now = Utc::now().naive_utc();
-    
+
     // Hash the new password
     let salt = SaltString::generate(&mut OsRng);
     let argon2 = Argon2::default();
