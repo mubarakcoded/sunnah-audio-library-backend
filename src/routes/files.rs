@@ -175,3 +175,36 @@ pub async fn get_related_files(
         pagination: Some(pagination_meta),
     }))
 }
+#[instrument(name = "Get All Files for Play All", skip(pool))]
+#[get("/{book_id}/play-all")]
+pub async fn get_all_files_for_play_all(
+    pool: web::Data<MySqlPool>,
+    book_id: web::Path<i32>,
+) -> Result<impl Responder, AppError> {
+    let book_id = book_id.into_inner();
+
+    let play_all_data = files::get_all_files_for_book_play_all(pool.get_ref(), book_id)
+        .await
+        .map_err(|e| {
+            tracing::error!("Failed to fetch files for play all: {:?}", e);
+            match e.error_type {
+                AppErrorType::NotFoundError => AppError {
+                    message: Some("Book not found".to_string()),
+                    cause: Some(e.to_string()),
+                    error_type: AppErrorType::NotFoundError,
+                },
+                _ => AppError {
+                    message: Some("Failed to fetch files for play all".to_string()),
+                    cause: Some(e.to_string()),
+                    error_type: AppErrorType::InternalServerError,
+                }
+            }
+        })?;
+
+    Ok(HttpResponse::Ok().json(AppSuccessResponse {
+        success: true,
+        message: "Play all files retrieved successfully".to_string(),
+        data: Some(play_all_data),
+        pagination: None,
+    }))
+}

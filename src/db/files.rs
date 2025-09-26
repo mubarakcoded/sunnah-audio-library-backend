@@ -1,5 +1,8 @@
 use crate::core::AppError;
-use crate::models::files::{FileSearchResult, Files, RecentFiles, RelatedFiles, ViewFileDetails, FilesWithStats, RecentFilesWithStats, FileStatistics};
+use crate::models::files::{
+    FileSearchResult, FileStatistics, Files, FilesWithStats, RecentFiles, RecentFilesWithStats,
+    RelatedFiles, ViewFileDetails,
+};
 use crate::models::pagination::PaginationQuery;
 use sqlx::MySqlPool;
 
@@ -456,4 +459,137 @@ pub async fn get_file_statistics(
         total_comments,
         is_liked_by_user,
     })
+}
+
+pub async fn get_all_files_for_book_play_all(
+    pool: &MySqlPool,
+    book_id: i32,
+) -> Result<crate::models::files::PlayAllResponse, AppError> {
+    // First, get book and scholar information
+    let book_info = sqlx::query!(
+        r#"
+        SELECT 
+            b.id as book_id,
+            b.name as book_name,
+            b.image as book_image,
+            s.id as scholar_id,
+            s.name as scholar_name,
+            s.image as scholar_image
+        FROM tbl_books b
+        JOIN tbl_scholars s ON b.scholar_id = s.id
+        WHERE b.id = ? AND b.status = 'active' AND s.status = 'active'
+        "#,
+        book_id
+    )
+    .fetch_one(pool)
+    .await
+    .map_err(AppError::db_error)?;
+
+    // Get all files for the book, ordered by creation date
+    let files = sqlx::query!(
+        r#"
+        SELECT
+            f.id as file_id,
+            f.name as file_name,
+            f.size as file_size,
+            f.duration as file_duration,
+            f.date,
+            COALESCE(CONCAT('http://127.0.0.1:8990/api/v1/static/uploads/', f.location), '') AS file_url
+        FROM tbl_files f
+        WHERE f.book = ? AND f.status = 'active'
+        ORDER BY f.date ASC, f.id ASC
+        "#,
+        book_id
+    )
+    .fetch_all(pool)
+    .await
+    .map_err(AppError::db_error)?;
+
+    // Convert to PlayAllFile structs
+    let play_all_files: Vec<crate::models::files::PlayAllFile> = files
+        .into_iter()
+        .map(|row| crate::models::files::PlayAllFile {
+            file_id: row.file_id,
+            file_name: row.file_name,
+            file_url: row.file_url,
+            file_size: row.file_size,
+            file_duration: row.file_duration,
+            sort_order: None, // No sort_order column in database
+            date: row.date.into(),
+        })
+        .collect();
+
+    // Calculate total duration (if needed, this is optional)
+    let total_duration = calculate_total_duration(&play_all_files);
+
+    Ok(crate::models::files::PlayAllResponse {
+        book_id: book_info.book_id,
+        book_name: book_info.book_name,
+        book_image: Some(format!(
+            "http://127.0.0.1:8990/api/v1/static/images/{}",
+            book_info.book_image
+        )),
+        scholar_id: book_info.scholar_id,
+        scholar_name: book_info.scholar_name,
+        scholar_image: Some(format!(
+            "http://127.0.0.1:8990/api/v1/static/images/{}",
+            book_info.scholar_image
+        )),
+        total_files: play_all_files.len() as i32,
+        total_duration,
+        files: play_all_files,
+    })
+}
+
+// Helper function to calculate total duration
+fn calculate_total_duration(files: &[crate::models::files::PlayAllFile]) -> Option<String> {
+    let mut total_seconds = 0;
+    let mut has_valid_duration = false;
+
+    for file in files {
+        if let Ok(duration) = parse_duration(&file.file_duration) {
+            total_seconds += duration;
+            has_valid_duration = true;
+        }
+    }
+
+    if has_valid_duration {
+        Some(format_duration(total_seconds))
+    } else {
+        None
+    }
+}
+
+// Helper function to parse duration string (e.g., "45:30" or "1:23:45")
+fn parse_duration(duration_str: &str) -> Result<u32, ()> {
+    let parts: Vec<&str> = duration_str.split(':').collect();
+    match parts.len() {
+        2 => {
+            // MM:SS format
+            let minutes: u32 = parts[0].parse().map_err(|_| ())?;
+            let seconds: u32 = parts[1].parse().map_err(|_| ())?;
+            Ok(minutes * 60 + seconds)
+        }
+        3 => {
+            // HH:MM:SS format
+            let hours: u32 = parts[0].parse().map_err(|_| ())?;
+            let minutes: u32 = parts[1].parse().map_err(|_| ())?;
+            let seconds: u32 = parts[2].parse().map_err(|_| ())?;
+            Ok(hours * 3600 + minutes * 60 + seconds)
+        }
+        _ => Err(()),
+    }
+}
+
+// Helper function to format duration back to string
+fn format_duration(total_seconds: u32) -> String {
+    let hours = total_seconds / 3600;
+    let minutes = (total_seconds % 3600) / 60;
+    let seconds = total_seconds % 60;
+
+    if hours > 0 {
+        format!("{}:{:02}:{:02}", hours, minutes, seconds)
+    } else {
+        format!("{}:{:02}", minutes, seconds)
+    }
 }

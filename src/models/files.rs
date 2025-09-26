@@ -106,3 +106,27 @@ pub struct RelatedFilesParams {
     pub page: Option<i64>,
     pub items_per_page: Option<i64>,
 }
+
+#[derive(Debug, Serialize)]
+pub struct PlayAllFile {
+    pub file_id: i32,
+    pub file_name: String,
+    pub file_url: String,
+    pub file_size: String,
+    pub file_duration: String,
+    pub sort_order: Option<i32>, // For proper ordering in playlist
+    pub date: DateTime<Local>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct PlayAllResponse {
+    pub book_id: i32,
+    pub book_name: String,
+    pub book_image: Option<String>,
+    pub scholar_id: i32,
+    pub scholar_name: String,
+    pub scholar_image: Option<String>,
+    pub total_files: i32,
+    pub total_duration: Option<String>, // Sum of all file durations
+    pub files: Vec<PlayAllFile>,
+}

@@ -3,7 +3,7 @@ use actix_files as fs;
 use actix_web::web::{scope, ServiceConfig};
 use actix_web::Scope;
 use books::{get_books_by_scholar, get_book_details, get_book_statistics};
-use files::{get_files_by_book, get_recent_files, get_related_files, view_file};
+use files::{get_files_by_book, get_recent_files, get_related_files, view_file, get_all_files_for_play_all};
 use scholars::{get_scholars, get_scholars_by_state, get_scholar_details, get_scholar_statistics};
 use search::full_text_search;
 use states::get_states;
@@ -43,6 +43,7 @@ fn util_routes() -> Scope {
 fn books_routes() -> Scope {
     scope("books")
         .service(get_files_by_book)
+        .service(get_all_files_for_play_all)
         .service(get_book_details)
         .service(get_book_statistics)
         .service(upload_file)
