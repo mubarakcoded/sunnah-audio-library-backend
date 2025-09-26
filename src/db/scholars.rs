@@ -182,6 +182,13 @@ pub async fn get_scholar_details(
         None
     };
 
+    // Check if user has access to this scholar (for managers)
+    let has_access = if let Some(uid) = user_id {
+        check_user_has_scholar_access(pool, uid, scholar_id).await?
+    } else {
+        None
+    };
+
     Ok(ScholarDetails {
         id: scholar_row.id,
         name: scholar_row.name,
@@ -192,6 +199,7 @@ pub async fn get_scholar_details(
         updated_at: Utc::now().naive_utc(), // Using current time as placeholder
         statistics,
         is_followed_by_user,
+        has_access,
     })
 }
 
@@ -301,4 +309,140 @@ pub async fn check_user_follows_scholar(
     .map_err(AppError::db_error)?;
 
     Ok(Some(follow_count > 0))
+}
+
+pub async fn check_user_has_scholar_access(
+    pool: &MySqlPool,
+    user_id: i32,
+    scholar_id: i32,
+) -> Result<Option<bool>, AppError> {
+    // First check if user is admin
+    let user_role = sqlx::query_scalar!(
+        "SELECT role FROM tbl_users WHERE id = ?",
+        user_id
+    )
+    .fetch_one(pool)
+    .await
+    .map_err(AppError::db_error)?;
+
+    if user_role == "admin" {
+        return Ok(Some(true));
+    }
+
+    // Check if user has specific access to this scholar
+    let access_count: i64 = sqlx::query_scalar!(
+        "SELECT COUNT(*) FROM tbl_access WHERE user_id = ? AND scholar_id = ?",
+        user_id,
+        scholar_id
+    )
+    .fetch_one(pool)
+    .await
+    .map_err(AppError::db_error)?;
+
+    Ok(Some(access_count > 0))
+}
+
+pub async fn get_scholars_dropdown(
+    pool: &MySqlPool,
+) -> Result<Vec<crate::models::scholars::ScholarDropdown>, AppError> {
+    let scholars = sqlx::query!(
+        "SELECT id, name FROM tbl_scholars WHERE status = 'active' ORDER BY name"
+    )
+    .fetch_all(pool)
+    .await
+    .map_err(AppError::db_error)?;
+
+    let dropdown_scholars = scholars
+        .into_iter()
+        .map(|row| crate::models::scholars::ScholarDropdown {
+            id: row.id,
+            name: row.name,
+        })
+        .collect();
+
+    Ok(dropdown_scholars)
+}
+
+pub async fn create_scholar(
+    pool: &MySqlPool,
+    request: &crate::models::scholars::CreateScholarRequest,
+) -> Result<i32, AppError> {
+    let now = Utc::now().naive_utc();
+    
+    let result = sqlx::query!(
+        r#"
+        INSERT INTO tbl_scholars (name, about, state, image, status, created_at, updated_at)
+        VALUES (?, ?, ?, ?, 'active', ?, ?)
+        "#,
+        request.name,
+        request.about,
+        request.state_id,
+        request.image.as_deref().unwrap_or("default.jpg"),
+        now,
+        now
+    )
+    .execute(pool)
+    .await
+    .map_err(AppError::db_error)?;
+
+    Ok(result.last_insert_id() as i32)
+}
+
+pub async fn update_scholar(
+    pool: &MySqlPool,
+    scholar_id: i32,
+    request: &crate::models::scholars::UpdateScholarRequest,
+) -> Result<(), AppError> {
+    let now = Utc::now().naive_utc();
+
+    // Update each field individually if provided
+    if let Some(ref name) = request.name {
+        sqlx::query!(
+            "UPDATE tbl_scholars SET name = ?, updated_at = ? WHERE id = ? AND status = 'active'",
+            name,
+            now,
+            scholar_id
+        )
+        .execute(pool)
+        .await
+        .map_err(AppError::db_error)?;
+    }
+
+    if let Some(ref about) = request.about {
+        sqlx::query!(
+            "UPDATE tbl_scholars SET about = ?, updated_at = ? WHERE id = ? AND status = 'active'",
+            about,
+            now,
+            scholar_id
+        )
+        .execute(pool)
+        .await
+        .map_err(AppError::db_error)?;
+    }
+
+    if let Some(state_id) = request.state_id {
+        sqlx::query!(
+            "UPDATE tbl_scholars SET state = ?, updated_at = ? WHERE id = ? AND status = 'active'",
+            state_id,
+            now,
+            scholar_id
+        )
+        .execute(pool)
+        .await
+        .map_err(AppError::db_error)?;
+    }
+
+    if let Some(ref image) = request.image {
+        sqlx::query!(
+            "UPDATE tbl_scholars SET image = ?, updated_at = ? WHERE id = ? AND status = 'active'",
+            image,
+            now,
+            scholar_id
+        )
+        .execute(pool)
+        .await
+        .map_err(AppError::db_error)?;
+    }
+
+    Ok(())
 }

@@ -1,4 +1,4 @@
-use serde::Serialize;
+use serde::{Serialize, Deserialize};
 use sqlx::FromRow;
 use chrono::NaiveDateTime;
 
@@ -29,6 +29,29 @@ pub struct ScholarDetails {
     pub updated_at: NaiveDateTime,
     pub statistics: ScholarStatistics,
     pub is_followed_by_user: Option<bool>, // Will be None if no user context
+    pub has_access: Option<bool>, // Will be None if no user context, true if manager has access
+}
+
+#[derive(Debug, Serialize)]
+pub struct ScholarDropdown {
+    pub id: i32,
+    pub name: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct CreateScholarRequest {
+    pub name: String,
+    pub about: Option<String>,
+    pub state_id: i32,
+    pub image: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct UpdateScholarRequest {
+    pub name: Option<String>,
+    pub about: Option<String>,
+    pub state_id: Option<i32>,
+    pub image: Option<String>,
 }
 
 #[derive(Debug, Serialize)]

@@ -25,7 +25,7 @@ use playlists::{
     get_playlist_files, get_public_playlists, remove_file_from_playlist, update_playlist,
 };
 use related_files::get_file_suggestions;
-use scholars::{get_scholar_details, get_scholar_statistics, get_scholars, get_scholars_by_state};
+use scholars::{get_scholar_details, get_scholar_statistics, get_scholars, get_scholars_by_state, get_scholars_dropdown, create_scholar, update_scholar};
 use search::full_text_search;
 use states::get_states;
 use subscriptions::{
@@ -70,6 +70,9 @@ fn books_routes() -> Scope {
         .service(get_book_details)
         .service(get_book_statistics)
         .service(upload_file)
+        .service(get_books_dropdown)
+        .service(create_book)
+        .service(update_book)
 }
 
 fn files_routes() -> Scope {
@@ -111,6 +114,9 @@ fn scholars_routes() -> Scope {
         .service(get_scholar_details)
         .service(get_scholar_statistics)
         .service(get_books_by_scholar)
+        .service(get_scholars_dropdown)
+        .service(create_scholar)
+        .service(update_scholar)
         // follow routes
         .service(follow_scholar)
         .service(unfollow_scholar)

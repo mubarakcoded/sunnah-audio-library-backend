@@ -1,9 +1,10 @@
 use crate::{
-    core::{AppError, AppErrorType, AppSuccessResponse, AppConfig, extract_user_id_from_request},
+    core::{AppError, AppErrorType, AppSuccessResponse, AppConfig, extract_user_id_from_request, jwt_auth::JwtMiddleware},
     models::pagination::{PaginationMeta, PaginationQuery},
+    models::scholars::{CreateScholarRequest, UpdateScholarRequest},
 };
 use actix_web::{
-    get,
+    get, post, put,
     web::{self},
     HttpRequest, HttpResponse, Responder,
 };
@@ -143,6 +144,124 @@ pub async fn get_scholar_statistics(
         success: true,
         message: "Scholar statistics retrieved successfully".to_string(),
         data: Some(statistics),
+        pagination: None,
+    }))
+}
+#[instrument(name = "Get Scholars Dropdown", skip(pool))]
+#[get("/dropdown")]
+pub async fn get_scholars_dropdown(
+    pool: web::Data<MySqlPool>,
+) -> Result<impl Responder, AppError> {
+    let scholars = scholars::get_scholars_dropdown(pool.get_ref())
+        .await
+        .map_err(|e| {
+            tracing::error!("Failed to fetch scholars dropdown: {:?}", e);
+            AppError {
+                message: Some("Failed to fetch scholars dropdown".to_string()),
+                cause: Some(e.to_string()),
+                error_type: AppErrorType::InternalServerError,
+            }
+        })?;
+
+    Ok(HttpResponse::Ok().json(AppSuccessResponse {
+        success: true,
+        message: "Scholars dropdown retrieved successfully".to_string(),
+        data: Some(scholars),
+        pagination: None,
+    }))
+}
+
+#[instrument(name = "Create Scholar", skip(pool, auth))]
+#[post("")]
+pub async fn create_scholar(
+    pool: web::Data<MySqlPool>,
+    auth: JwtMiddleware,
+    request: web::Json<CreateScholarRequest>,
+) -> Result<impl Responder, AppError> {
+    // Check if user is admin
+    let user = crate::db::users::get_user_by_id(pool.get_ref(), auth.user_id)
+        .await
+        .map_err(|e| {
+            tracing::error!("Failed to get user: {:?}", e);
+            AppError {
+                message: Some("User not found".to_string()),
+                cause: Some(e.to_string()),
+                error_type: AppErrorType::NotFoundError,
+            }
+        })?;
+
+    if user.role != "admin" {
+        return Err(AppError {
+            message: Some("Only admins can create scholars".to_string()),
+            cause: None,
+            error_type: AppErrorType::ForbiddenError,
+        });
+    }
+
+    let scholar_id = scholars::create_scholar(pool.get_ref(), &request)
+        .await
+        .map_err(|e| {
+            tracing::error!("Failed to create scholar: {:?}", e);
+            AppError {
+                message: Some("Failed to create scholar".to_string()),
+                cause: Some(e.to_string()),
+                error_type: AppErrorType::InternalServerError,
+            }
+        })?;
+
+    Ok(HttpResponse::Created().json(AppSuccessResponse {
+        success: true,
+        message: "Scholar created successfully".to_string(),
+        data: Some(serde_json::json!({"id": scholar_id})),
+        pagination: None,
+    }))
+}
+
+#[instrument(name = "Update Scholar", skip(pool, auth))]
+#[put("/{scholar_id}")]
+pub async fn update_scholar(
+    pool: web::Data<MySqlPool>,
+    auth: JwtMiddleware,
+    scholar_id: web::Path<i32>,
+    request: web::Json<UpdateScholarRequest>,
+) -> Result<impl Responder, AppError> {
+    let scholar_id = scholar_id.into_inner();
+
+    // Check if user is admin
+    let user = crate::db::users::get_user_by_id(pool.get_ref(), auth.user_id)
+        .await
+        .map_err(|e| {
+            tracing::error!("Failed to get user: {:?}", e);
+            AppError {
+                message: Some("User not found".to_string()),
+                cause: Some(e.to_string()),
+                error_type: AppErrorType::NotFoundError,
+            }
+        })?;
+
+    if user.role != "admin" {
+        return Err(AppError {
+            message: Some("Only admins can update scholars".to_string()),
+            cause: None,
+            error_type: AppErrorType::ForbiddenError,
+        });
+    }
+
+    scholars::update_scholar(pool.get_ref(), scholar_id, &request)
+        .await
+        .map_err(|e| {
+            tracing::error!("Failed to update scholar: {:?}", e);
+            AppError {
+                message: Some("Failed to update scholar".to_string()),
+                cause: Some(e.to_string()),
+                error_type: AppErrorType::InternalServerError,
+            }
+        })?;
+
+    Ok(HttpResponse::Ok().json(AppSuccessResponse {
+        success: true,
+        message: "Scholar updated successfully".to_string(),
+        data: None::<()>,
         pagination: None,
     }))
 }
