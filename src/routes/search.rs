@@ -9,7 +9,7 @@ use tracing::instrument;
 
 use crate::{
     core::{AppError, AppErrorType, AppSuccessResponse},
-    db::{books, files, scholars},
+    db::{books, files, scholars}, models::pagination::PaginationMeta,
 };
 
 #[derive(Deserialize)]
@@ -35,13 +35,13 @@ pub async fn full_text_search(
     }
 
     let page = query.page.unwrap_or(1);
-    let items_per_page = query.items_per_page.unwrap_or(10);
+    let per_page = query.per_page.unwrap_or(20);
     // Run searches concurrently
 
     let (scholars_res, books_res, files_res) = tokio::join!(
-        scholars::search_scholars(pool.get_ref(), search_term, page, items_per_page),
-        books::search_books(pool.get_ref(), search_term, page, items_per_page),
-        files::search_files(pool.get_ref(), search_term, page, items_per_page),
+        scholars::search_scholars(pool.get_ref(), search_term, page, per_page),
+        books::search_books(pool.get_ref(), search_term, page, per_page),
+        files::search_files(pool.get_ref(), search_term, page, per_page),
     );
 
     let (scholars, books, files) = (
@@ -71,36 +71,25 @@ pub async fn full_text_search(
         })?,
     );
 
+    let scholars_pagination = PaginationMeta::new(page, per_page, scholars.1);
+    let books_pagination = PaginationMeta::new(page, per_page, books.1);
+    let files_pagination = PaginationMeta::new(page, per_page, files.1);
+
     Ok(HttpResponse::Ok().json(AppSuccessResponse {
         success: true,
         message: "Search results retrieved successfully".to_string(),
         data: Some(serde_json::json!({
             "scholars": {
                 "items": scholars.0,
-                "pagination": {
-                    "current_page": page,
-                    "items_per_page": items_per_page,
-                    "total_items": scholars.1,
-                    "total_pages": (scholars.1 as f64 / items_per_page as f64).ceil() as i64
-                }
+                "pagination": scholars_pagination
             },
             "books": {
                 "items": books.0,
-                "pagination": {
-                    "current_page": page,
-                    "items_per_page": items_per_page,
-                    "total_items": books.1,
-                    "total_pages": (books.1 as f64 / items_per_page as f64).ceil() as i64
-                }
+                "pagination": books_pagination
             },
             "files": {
                 "items": files.0,
-                "pagination": {
-                    "current_page": page,
-                    "items_per_page": items_per_page,
-                    "total_items": files.1,
-                    "total_pages": (files.1 as f64 / items_per_page as f64).ceil() as i64
-                }
+                "pagination": files_pagination
             },
         })),
         pagination: None,

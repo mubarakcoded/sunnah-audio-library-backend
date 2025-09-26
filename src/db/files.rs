@@ -187,10 +187,9 @@ pub async fn fetch_related_files(
     pool: &MySqlPool,
     book_id: i32,
     exclude_file_id: i32,
-    page: i64,
-    items_per_page: i64,
+    pagination: &PaginationQuery,
 ) -> Result<(Vec<RelatedFiles>, i64), AppError> {
-    let offset = (page - 1) * items_per_page;
+    // let offset = (page - 1) * items_per_page;
 
     let related_files = sqlx::query_as!(
         RelatedFiles,
@@ -210,8 +209,8 @@ pub async fn fetch_related_files(
         "#,
         book_id,
         exclude_file_id,
-        items_per_page,
-        offset
+        pagination.per_page,
+        pagination.offset()
     )
     .fetch_all(pool)
     .await
