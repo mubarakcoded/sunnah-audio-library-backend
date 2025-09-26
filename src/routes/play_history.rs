@@ -1,6 +1,6 @@
 use crate::core::jwt_auth::JwtClaims;
 use crate::core::AppError;
-use crate::core::{AppErrorResponse, AppSuccessResponse};
+use crate::core::AppSuccessResponse;
 use crate::db::play_history;
 use crate::models::pagination::PaginationQuery;
 use crate::models::play_history::RecordPlayRequest;

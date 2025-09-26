@@ -144,7 +144,7 @@ pub async fn like_file(
 ) -> Result<FileLike, AppError> {
     let now = Utc::now().naive_utc();
 
-    let result = sqlx::query!(
+    let _result = sqlx::query!(
         r#"
         INSERT INTO tbl_file_likes (user_id, file_id, created_at)
         VALUES (?, ?, ?)

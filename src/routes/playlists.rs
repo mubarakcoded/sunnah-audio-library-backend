@@ -1,6 +1,6 @@
 use crate::core::jwt_auth::JwtClaims;
 use crate::core::AppError;
-use crate::core::{AppErrorResponse, AppSuccessResponse};
+use crate::core::AppSuccessResponse;
 use crate::db::playlists;
 use crate::models::playlists::{CreatePlaylistRequest, UpdatePlaylistRequest, AddToPlaylistRequest};
 use crate::models::pagination::PaginationQuery;

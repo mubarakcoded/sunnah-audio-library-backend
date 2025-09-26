@@ -12,7 +12,7 @@ pub async fn follow_scholar(
     let now = Utc::now().naive_utc();
     let notifications_enabled = request.notifications_enabled.unwrap_or(true);
 
-    let result = sqlx::query!(
+    let _result = sqlx::query!(
         r#"
         INSERT INTO tbl_user_scholar_follows (user_id, scholar_id, notifications_enabled, followed_at)
         VALUES (?, ?, ?, ?)

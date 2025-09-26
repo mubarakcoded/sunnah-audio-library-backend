@@ -1,7 +1,7 @@
 use crate::core::AppError;
 use crate::models::playlists::{
     AddToPlaylistRequest, CreatePlaylistRequest, Playlist, PlaylistFile, PlaylistFileResponse,
-    PlaylistResponse, ReorderPlaylistRequest, UpdatePlaylistRequest,
+    PlaylistResponse, UpdatePlaylistRequest,
 };
 use chrono::Utc;
 use sqlx::MySqlPool;

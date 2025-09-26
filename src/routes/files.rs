@@ -9,10 +9,7 @@ use tracing::instrument;
 use crate::{
     core::{AppError, AppErrorType, AppSuccessResponse},
     db::files,
-    models::{
-        files::RelatedFilesParams,
-        pagination::{PaginationMeta, PaginationQuery},
-    },
+    models::pagination::{PaginationMeta, PaginationQuery},
 };
 
 #[instrument(name = "Get Files by Book", skip(pool))]
@@ -37,8 +34,7 @@ pub async fn get_files_by_book(
                 }
             })?;
 
-    let pagination_meta =
-        PaginationMeta::new(pagination.page, pagination.per_page, total_items);
+    let pagination_meta = PaginationMeta::new(pagination.page, pagination.per_page, total_items);
 
     Ok(HttpResponse::Ok().json(AppSuccessResponse {
         success: true,
@@ -104,16 +100,17 @@ pub async fn view_file(
     }))
 }
 
-#[instrument(name = "Get Related Files", skip(pool, query))]
+#[instrument(name = "Get Related Files", skip(pool, pagination))]
 #[get("/{file_id}/related")]
 pub async fn get_related_files(
     pool: web::Data<MySqlPool>,
     file_id: web::Path<i32>,
-    query: web::Query<RelatedFilesParams>,
+    pagination: web::Query<PaginationQuery>,
 ) -> Result<impl Responder, AppError> {
+    let mut pagination = pagination.into_inner();
+    pagination.validate();
+
     let file_id = file_id.into_inner();
-    let page = query.page.unwrap_or(1);
-    let items_per_page = query.items_per_page.unwrap_or(10);
 
     // First, fetch the book_id of the current file
     let book_id = files::fetch_book_id_for_file(pool.get_ref(), file_id)
@@ -129,9 +126,9 @@ pub async fn get_related_files(
 
     // Fetch related files
     let (related_files, total_count) =
-        files::fetch_related_files(pool.get_ref(), book_id, file_id, page, items_per_page).await?;
+        files::fetch_related_files(pool.get_ref(), book_id, file_id, &pagination).await?;
 
-    let pagination_meta = PaginationMeta::new(page, items_per_page, total_count);
+    let pagination_meta = PaginationMeta::new(pagination.page, pagination.per_page, total_count);
 
     Ok(HttpResponse::Ok().json(AppSuccessResponse {
         success: true,
