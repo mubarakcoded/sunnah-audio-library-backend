@@ -52,6 +52,21 @@ fn files_routes() -> Scope {
         .service(view_file)
         .service(get_related_files)
         .service(download_file)
+        // file_interactions_routes
+        .service(report_file)
+        .service(get_pending_reports)
+        .service(resolve_report)
+        .service(like_file)
+        .service(unlike_file)
+        .service(get_file_likes)
+        .service(check_file_like_status)
+        .service(create_comment)
+        .service(get_file_comments)
+        .service(update_comment)
+        .service(delete_comment)
+        .service(get_file_download_stats)
+        .service(get_my_download_history)
+
 }
 
 fn auth_routes() -> Scope {
@@ -68,6 +83,12 @@ fn scholars_routes() -> Scope {
         .service(get_scholars)
         .service(get_scholars_by_state)
         .service(get_books_by_scholar)
+        // follow routes
+        .service(follow_scholar)
+        .service(unfollow_scholar)
+        .service(update_follow_settings)
+        .service(get_my_followed_scholars)
+        .service(check_follow_status)
 }
 
 fn users_routes() -> Scope {
@@ -93,17 +114,8 @@ fn subscriptions_routes() -> Scope {
         .service(verify_subscription)
 }
 
-fn follows_routes() -> Scope {
-    scope("")
-        .service(follow_scholar)
-        .service(unfollow_scholar)
-        .service(update_follow_settings)
-        .service(get_my_followed_scholars)
-        .service(check_follow_status)
-}
-
 fn play_history_routes() -> Scope {
-    scope("")
+    scope("play-history")
         .service(record_play)
         .service(get_my_play_history)
         .service(get_most_played_files)
@@ -112,7 +124,7 @@ fn play_history_routes() -> Scope {
 }
 
 fn playlists_routes() -> Scope {
-    scope("")
+    scope("playlists")
         .service(create_playlist)
         .service(get_my_playlists)
         .service(get_public_playlists)
@@ -122,23 +134,6 @@ fn playlists_routes() -> Scope {
         .service(add_file_to_playlist)
         .service(remove_file_from_playlist)
         .service(get_playlist_files)
-}
-
-fn file_interactions_routes() -> Scope {
-    scope("")
-        .service(report_file)
-        .service(get_pending_reports)
-        .service(resolve_report)
-        .service(like_file)
-        .service(unlike_file)
-        .service(get_file_likes)
-        .service(check_file_like_status)
-        .service(create_comment)
-        .service(get_file_comments)
-        .service(update_comment)
-        .service(delete_comment)
-        .service(get_file_download_stats)
-        .service(get_my_download_history)
 }
 
 fn static_files_routes() -> Scope {
@@ -158,10 +153,8 @@ pub fn sunnah_audio_routes(conf: &mut ServiceConfig) {
             .service(files_routes())
             .service(users_routes())
             .service(subscriptions_routes())
-            .service(follows_routes())
             .service(play_history_routes())
             .service(playlists_routes())
-            .service(file_interactions_routes())
             .service(static_files_routes())
             .service(util_routes()),
     );

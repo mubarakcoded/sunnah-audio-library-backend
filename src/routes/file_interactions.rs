@@ -91,7 +91,7 @@ pub async fn resolve_report(
 
 // File Likes
 #[tracing::instrument(name = "Like File", skip(pool, claims, request))]
-#[post("/files/likes")]
+#[post("/likes")]
 pub async fn like_file(
     pool: web::Data<MySqlPool>,
     claims: JwtClaims,
@@ -113,7 +113,7 @@ pub async fn like_file(
 }
 
 #[tracing::instrument(name = "Unlike File", skip(pool, claims))]
-#[delete("/files/{file_id}/likes")]
+#[delete("/{file_id}/likes")]
 pub async fn unlike_file(
     pool: web::Data<MySqlPool>,
     claims: JwtClaims,
@@ -136,7 +136,7 @@ pub async fn unlike_file(
 }
 
 #[tracing::instrument(name = "Get File Likes", skip(pool))]
-#[get("/files/{file_id}/likes")]
+#[get("/{file_id}/likes")]
 pub async fn get_file_likes(
     pool: web::Data<MySqlPool>,
     path: web::Path<i32>,
@@ -156,7 +156,7 @@ pub async fn get_file_likes(
 }
 
 #[tracing::instrument(name = "Check File Like Status", skip(pool, claims))]
-#[get("/files/{file_id}/like-status")]
+#[get("/{file_id}/like-status")]
 pub async fn check_file_like_status(
     pool: web::Data<MySqlPool>,
     claims: JwtClaims,
@@ -185,7 +185,7 @@ pub async fn check_file_like_status(
 
 // File Comments
 #[tracing::instrument(name = "Create Comment", skip(pool, claims, request))]
-#[post("/files/comments")]
+#[post("/comments")]
 pub async fn create_comment(
     pool: web::Data<MySqlPool>,
     claims: JwtClaims,
@@ -207,7 +207,7 @@ pub async fn create_comment(
 }
 
 #[tracing::instrument(name = "Get File Comments", skip(pool))]
-#[get("/files/{file_id}/comments")]
+#[get("/{file_id}/comments")]
 pub async fn get_file_comments(
     pool: web::Data<MySqlPool>,
     path: web::Path<i32>,
@@ -272,7 +272,7 @@ pub async fn delete_comment(
 
 // Download Stats
 #[tracing::instrument(name = "Get File Download Stats", skip(pool))]
-#[get("/files/{file_id}/download-stats")]
+#[get("/{file_id}/download-stats")]
 pub async fn get_file_download_stats(
     pool: web::Data<MySqlPool>,
     path: web::Path<i32>,

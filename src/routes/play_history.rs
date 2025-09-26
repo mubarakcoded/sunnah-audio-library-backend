@@ -8,7 +8,7 @@ use actix_web::{delete, get, post, web, HttpResponse, Result};
 use sqlx::MySqlPool;
 
 #[tracing::instrument(name = "Record Play History", skip(pool, claims, request))]
-#[post("/play-history")]
+#[post("/")]
 pub async fn record_play(
     pool: web::Data<MySqlPool>,
     claims: JwtClaims,
@@ -30,7 +30,7 @@ pub async fn record_play(
 }
 
 #[tracing::instrument(name = "Get User Play History", skip(pool, claims, pagination))]
-#[get("/play-history")]
+#[get("/")]
 pub async fn get_my_play_history(
     pool: web::Data<MySqlPool>,
     claims: JwtClaims,
@@ -58,7 +58,7 @@ pub async fn get_my_play_history(
 }
 
 #[tracing::instrument(name = "Get Most Played Files", skip(pool, claims, query))]
-#[get("/play-history/most-played")]
+#[get("most-played")]
 pub async fn get_most_played_files(
     pool: web::Data<MySqlPool>,
     claims: JwtClaims,
@@ -84,7 +84,7 @@ pub async fn get_most_played_files(
 }
 
 #[tracing::instrument(name = "Clear Play History", skip(pool, claims))]
-#[delete("/play-history")]
+#[delete("/")]
 pub async fn clear_play_history(
     pool: web::Data<MySqlPool>,
     claims: JwtClaims,

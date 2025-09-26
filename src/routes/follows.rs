@@ -7,7 +7,7 @@ use actix_web::{delete, get, post, put, web, HttpResponse, Result};
 use sqlx::MySqlPool;
 
 #[tracing::instrument(name = "Follow Scholar", skip(pool, claims, request))]
-#[post("/scholars/{scholar_id}/follow")]
+#[post("/{scholar_id}/follow")]
 pub async fn follow_scholar(
     pool: web::Data<MySqlPool>,
     claims: JwtClaims,
@@ -40,7 +40,7 @@ pub async fn follow_scholar(
 }
 
 #[tracing::instrument(name = "Unfollow Scholar", skip(pool, claims))]
-#[delete("/scholars/{scholar_id}/follow")]
+#[delete("/{scholar_id}/follow")]
 pub async fn unfollow_scholar(
     pool: web::Data<MySqlPool>,
     claims: JwtClaims,
@@ -56,14 +56,14 @@ pub async fn unfollow_scholar(
 
     Ok(HttpResponse::Ok().json(AppSuccessResponse {
         success: true,
-        data: serde_json::json!({"message": "Scholar unfollowed successfully"}),
+        data: (),
         message: "Scholar unfollowed successfully".to_string(),
         pagination: None,
     }))
 }
 
 #[tracing::instrument(name = "Update Follow Settings", skip(pool, claims, request))]
-#[put("/scholars/{scholar_id}/follow")]
+#[put("/{scholar_id}/follow")]
 pub async fn update_follow_settings(
     pool: web::Data<MySqlPool>,
     claims: JwtClaims,
@@ -108,7 +108,7 @@ pub async fn get_my_followed_scholars(
 }
 
 #[tracing::instrument(name = "Check Follow Status", skip(pool, claims))]
-#[get("/scholars/{scholar_id}/follow-status")]
+#[get("/{scholar_id}/follow-status")]
 pub async fn check_follow_status(
     pool: web::Data<MySqlPool>,
     claims: JwtClaims,

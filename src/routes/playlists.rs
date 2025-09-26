@@ -8,7 +8,7 @@ use actix_web::{delete, get, post, put, web, HttpResponse, Result};
 use sqlx::MySqlPool;
 
 #[tracing::instrument(name = "Create Playlist", skip(pool, claims, request))]
-#[post("/playlists")]
+#[post("/")]
 pub async fn create_playlist(
     pool: web::Data<MySqlPool>,
     claims: JwtClaims,
@@ -30,7 +30,7 @@ pub async fn create_playlist(
 }
 
 #[tracing::instrument(name = "Get My Playlists", skip(pool, claims))]
-#[get("/playlists")]
+#[get("/")]
 pub async fn get_my_playlists(
     pool: web::Data<MySqlPool>,
     claims: JwtClaims,
@@ -51,7 +51,7 @@ pub async fn get_my_playlists(
 }
 
 #[tracing::instrument(name = "Get Public Playlists", skip(pool, pagination))]
-#[get("/playlists/public")]
+#[get("/public")]
 pub async fn get_public_playlists(
     pool: web::Data<MySqlPool>,
     pagination: web::Query<PaginationQuery>,
@@ -72,7 +72,7 @@ pub async fn get_public_playlists(
 }
 
 #[tracing::instrument(name = "Get Playlist", skip(pool))]
-#[get("/playlists/{playlist_id}")]
+#[get("/{playlist_id}")]
 pub async fn get_playlist(
     pool: web::Data<MySqlPool>,
     path: web::Path<i32>,
@@ -89,7 +89,7 @@ pub async fn get_playlist(
 }
 
 #[tracing::instrument(name = "Update Playlist", skip(pool, claims, request))]
-#[put("/playlists/{playlist_id}")]
+#[put("/{playlist_id}")]
 pub async fn update_playlist(
     pool: web::Data<MySqlPool>,
     claims: JwtClaims,
@@ -113,7 +113,7 @@ pub async fn update_playlist(
 }
 
 #[tracing::instrument(name = "Delete Playlist", skip(pool, claims))]
-#[delete("/playlists/{playlist_id}")]
+#[delete("/{playlist_id}")]
 pub async fn delete_playlist(
     pool: web::Data<MySqlPool>,
     claims: JwtClaims,
@@ -136,7 +136,7 @@ pub async fn delete_playlist(
 }
 
 #[tracing::instrument(name = "Add File to Playlist", skip(pool, claims, request))]
-#[post("/playlists/{playlist_id}/files")]
+#[post("/{playlist_id}/files")]
 pub async fn add_file_to_playlist(
     pool: web::Data<MySqlPool>,
     claims: JwtClaims,
@@ -160,7 +160,7 @@ pub async fn add_file_to_playlist(
 }
 
 #[tracing::instrument(name = "Remove File from Playlist", skip(pool, claims))]
-#[delete("/playlists/{playlist_id}/files/{file_id}")]
+#[delete("/{playlist_id}/files/{file_id}")]
 pub async fn remove_file_from_playlist(
     pool: web::Data<MySqlPool>,
     claims: JwtClaims,
@@ -183,7 +183,7 @@ pub async fn remove_file_from_playlist(
 }
 
 #[tracing::instrument(name = "Get Playlist Files", skip(pool))]
-#[get("/playlists/{playlist_id}/files")]
+#[get("/{playlist_id}/files")]
 pub async fn get_playlist_files(
     pool: web::Data<MySqlPool>,
     path: web::Path<i32>,
