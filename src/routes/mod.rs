@@ -9,7 +9,7 @@ use file_interactions::{
     like_file, report_file, resolve_report, unlike_file, update_comment,
 };
 use files::{
-    get_all_files_for_play_all, get_files_by_book, get_recent_files, get_related_files, view_file,
+    get_all_files_for_play_all, get_files_by_book, get_recent_files, get_related_files, view_file, update_file,
 };
 use follows::{
     check_follow_status, follow_scholar, get_my_followed_scholars, unfollow_scholar,
@@ -82,6 +82,7 @@ fn files_routes() -> Scope {
         .service(get_related_files)
         .service(get_file_suggestions) // New endpoint for next/previous suggestions
         .service(download_file)
+        .service(update_file)
         // file_interactions_routes
         .service(report_file)
         .service(get_pending_reports)

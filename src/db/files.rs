@@ -576,3 +576,61 @@ pub async fn get_all_files_for_book_play_all(
         files: play_all_files,
     })
 }
+
+pub async fn update_file(
+    pool: &MySqlPool,
+    file_id: i32,
+    request: &crate::models::files::UpdateFileRequest,
+) -> Result<(), AppError> {
+    let now = chrono::Utc::now().naive_utc();
+
+    // Update each field individually if provided
+    if let Some(ref title) = request.title {
+        sqlx::query!(
+            "UPDATE tbl_files SET name = ?, updated_at = ? WHERE id = ? AND status = 'active'",
+            title,
+            now,
+            file_id
+        )
+        .execute(pool)
+        .await
+        .map_err(AppError::db_error)?;
+    }
+
+    if let Some(book_id) = request.book_id {
+        sqlx::query!(
+            "UPDATE tbl_files SET book = ?, updated_at = ? WHERE id = ? AND status = 'active'",
+            book_id,
+            now,
+            file_id
+        )
+        .execute(pool)
+        .await
+        .map_err(AppError::db_error)?;
+    }
+
+    Ok(())
+}
+
+pub async fn check_file_owner_or_admin(
+    pool: &MySqlPool,
+    user_id: i32,
+    _file_id: i32,
+) -> Result<bool, AppError> {
+    // First check if user is admin
+    let user_role = sqlx::query_scalar!(
+        "SELECT role FROM tbl_users WHERE id = ?",
+        user_id
+    )
+    .fetch_one(pool)
+    .await
+    .map_err(AppError::db_error)?;
+
+    if user_role == "admin" {
+        return Ok(true);
+    }
+
+    // For now, since uploaded_by column doesn't exist, only allow admins
+    // In production, you should add uploaded_by column to track file ownership
+    Ok(false)
+}

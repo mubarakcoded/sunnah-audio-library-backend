@@ -1,5 +1,5 @@
 use actix_web::{
-    get,
+    get, put,
     web::{self},
     HttpResponse, Responder, HttpRequest,
 };
@@ -7,9 +7,10 @@ use sqlx::MySqlPool;
 use tracing::instrument;
 
 use crate::{
-    core::{AppError, AppErrorType, AppSuccessResponse, AppConfig, extract_user_id_from_request},
+    core::{AppError, AppErrorType, AppSuccessResponse, AppConfig, extract_user_id_from_request, jwt_auth::JwtMiddleware},
     db::files,
     models::pagination::{PaginationMeta, PaginationQuery},
+    models::files::UpdateFileRequest,
 };
 
 #[instrument(name = "Get Files by Book", skip(pool, config))]
@@ -182,6 +183,109 @@ pub async fn get_all_files_for_play_all(
         success: true,
         message: "Play all files retrieved successfully".to_string(),
         data: Some(play_all_data),
+        pagination: None,
+    }))
+}#
+[instrument(name = "Update File", skip(pool, auth))]
+#[put("/{file_id}")]
+pub async fn update_file(
+    pool: web::Data<MySqlPool>,
+    auth: JwtMiddleware,
+    file_id: web::Path<i32>,
+    request: web::Json<UpdateFileRequest>,
+) -> Result<impl Responder, AppError> {
+    let file_id = file_id.into_inner();
+
+    // Check if user can update this file (owner or admin)
+    let can_update = files::check_file_owner_or_admin(pool.get_ref(), auth.user_id, file_id)
+        .await
+        .map_err(|e| {
+            tracing::error!("Failed to check file permissions: {:?}", e);
+            AppError {
+                message: Some("Failed to verify permissions".to_string()),
+                cause: Some(e.to_string()),
+                error_type: AppErrorType::InternalServerError,
+            }
+        })?;
+
+    if !can_update {
+        return Err(AppError {
+            message: Some("You don't have permission to update this file".to_string()),
+            cause: None,
+            error_type: AppErrorType::ForbiddenError,
+        });
+    }
+
+    // If changing book, check if user has access to the new book's scholar
+    if let Some(new_book_id) = request.book_id {
+        let user = crate::db::users::get_user_by_id(pool.get_ref(), auth.user_id)
+            .await
+            .map_err(|e| {
+                tracing::error!("Failed to get user: {:?}", e);
+                AppError {
+                    message: Some("User not found".to_string()),
+                    cause: Some(e.to_string()),
+                    error_type: AppErrorType::NotFoundError,
+                }
+            })?;
+
+        if user.role != "admin" {
+            // Get the scholar_id for the new book
+            let scholar_id = sqlx::query_scalar!(
+                "SELECT scholar_id FROM tbl_books WHERE id = ? AND status = 'active'",
+                new_book_id
+            )
+            .fetch_one(pool.get_ref())
+            .await
+            .map_err(|e| {
+                tracing::error!("Failed to get book scholar: {:?}", e);
+                AppError {
+                    message: Some("Book not found".to_string()),
+                    cause: Some(e.to_string()),
+                    error_type: AppErrorType::NotFoundError,
+                }
+            })?;
+
+            let has_access = crate::db::access::check_user_access_to_scholar(
+                pool.get_ref(), 
+                auth.user_id, 
+                scholar_id
+            )
+            .await
+            .map_err(|e| {
+                tracing::error!("Failed to check user access: {:?}", e);
+                AppError {
+                    message: Some("Failed to verify permissions".to_string()),
+                    cause: Some(e.to_string()),
+                    error_type: AppErrorType::InternalServerError,
+                }
+            })?;
+
+            if !has_access {
+                return Err(AppError {
+                    message: Some("You don't have permission to move this file to the specified book".to_string()),
+                    cause: None,
+                    error_type: AppErrorType::ForbiddenError,
+                });
+            }
+        }
+    }
+
+    files::update_file(pool.get_ref(), file_id, &request)
+        .await
+        .map_err(|e| {
+            tracing::error!("Failed to update file: {:?}", e);
+            AppError {
+                message: Some("Failed to update file".to_string()),
+                cause: Some(e.to_string()),
+                error_type: AppErrorType::InternalServerError,
+            }
+        })?;
+
+    Ok(HttpResponse::Ok().json(AppSuccessResponse {
+        success: true,
+        message: "File updated successfully".to_string(),
+        data: None::<()>,
         pagination: None,
     }))
 }

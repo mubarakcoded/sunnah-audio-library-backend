@@ -130,3 +130,10 @@ pub struct PlayAllResponse {
     pub total_duration: Option<String>, // Sum of all file durations
     pub files: Vec<PlayAllFile>,
 }
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct UpdateFileRequest {
+    pub title: Option<String>,
+    pub description: Option<String>,
+    pub book_id: Option<i32>,
+}
