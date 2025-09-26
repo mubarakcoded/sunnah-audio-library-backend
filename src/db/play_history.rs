@@ -13,12 +13,24 @@ pub async fn record_play(
 
     let result = sqlx::query!(
         r#"
-        INSERT INTO tbl_play_history (user_id, file_id, played_duration, device_type, played_at)
-        VALUES (?, ?, ?, ?, ?)
+        INSERT INTO tbl_play_history (
+            user_id, 
+            file_id, 
+            played_duration, 
+            total_duration, 
+            play_position, 
+            play_action, 
+            device_type, 
+            played_at
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         "#,
         user_id,
         request.file_id,
         request.played_duration,
+        request.total_duration,
+        request.play_position,
+        request.play_action.as_str(),
         request.device_type,
         now
     )
@@ -37,7 +49,16 @@ pub async fn get_play_history_by_id(
 ) -> Result<PlayHistory, AppError> {
     let row = sqlx::query!(
         r#"
-        SELECT id, user_id, file_id, played_duration, device_type, played_at
+        SELECT 
+            id, 
+            user_id, 
+            file_id, 
+            played_duration, 
+            total_duration, 
+            play_position, 
+            play_action, 
+            device_type, 
+            played_at
         FROM tbl_play_history
         WHERE id = ?
         "#,
@@ -52,6 +73,9 @@ pub async fn get_play_history_by_id(
         user_id: row.user_id,
         file_id: row.file_id,
         played_duration: row.played_duration.unwrap_or(0),
+        total_duration: row.total_duration,
+        play_position: row.play_position,
+        play_action: row.play_action,
         device_type: row.device_type,
         played_at: row.played_at.naive_utc(),
     })
@@ -74,6 +98,9 @@ pub async fn get_user_play_history(
             f.name as file_title,
             s.name as scholar_name,
             ph.played_duration,
+            ph.total_duration,
+            ph.play_position,
+            ph.play_action,
             ph.device_type,
             ph.played_at
         FROM tbl_play_history ph
@@ -98,6 +125,9 @@ pub async fn get_user_play_history(
             file_title: row.file_title,
             scholar_name: row.scholar_name,
             played_duration: row.played_duration.unwrap_or(0),
+            total_duration: row.total_duration,
+            play_position: row.play_position,
+            play_action: row.play_action,
             device_type: row.device_type,
             played_at: row.played_at.naive_utc(),
         })
@@ -144,9 +174,13 @@ pub async fn get_user_most_played_files(
             file_id: row.file_id,
             file_title: row.file_title,
             scholar_name: row.scholar_name,
-            played_duration: row.total_played_duration
+            played_duration: row
+                .total_played_duration
                 .and_then(|bd| bd.to_string().parse::<i32>().ok())
                 .unwrap_or(0),
+            total_duration: None, // Aggregated data doesn't have individual total_duration
+            play_position: None,  // Aggregated data doesn't have individual position
+            play_action: "Aggregated".to_string(), // Indicate this is aggregated data
             device_type: None,
             played_at: row.last_played_at.unwrap().naive_utc(),
         })

@@ -2,33 +2,56 @@ use actix_files as fs;
 
 use actix_web::web::{scope, ServiceConfig};
 use actix_web::Scope;
-use books::{get_books_by_scholar, get_book_details, get_book_statistics};
-use files::{get_files_by_book, get_recent_files, get_related_files, view_file, get_all_files_for_play_all};
-use scholars::{get_scholars, get_scholars_by_state, get_scholar_details, get_scholar_statistics};
+use books::{get_book_details, get_book_statistics, get_books_by_scholar};
+use file_interactions::{
+    check_file_like_status, create_comment, delete_comment, get_file_comments,
+    get_file_download_stats, get_file_likes, get_my_download_history, get_pending_reports,
+    like_file, report_file, resolve_report, unlike_file, update_comment,
+};
+use files::{
+    get_all_files_for_play_all, get_files_by_book, get_recent_files, get_related_files, view_file,
+};
+use follows::{
+    check_follow_status, follow_scholar, get_my_followed_scholars, unfollow_scholar,
+    update_follow_settings,
+};
+use permissions::{get_all_accesses, get_user_permissions, grant_access, revoke_access};
+use play_history::{
+    clear_play_history, get_file_play_stats, get_most_played_files, get_my_play_history,
+    record_play,
+};
+use playlists::{
+    add_file_to_playlist, create_playlist, delete_playlist, get_my_playlists, get_playlist,
+    get_playlist_files, get_public_playlists, remove_file_from_playlist, update_playlist,
+};
+use related_files::get_file_suggestions;
+use scholars::{get_scholar_details, get_scholar_statistics, get_scholars, get_scholars_by_state};
 use search::full_text_search;
 use states::get_states;
-use permissions::{get_user_permissions, grant_access, revoke_access, get_all_accesses};
-use uploads::{upload_file, download_file};
-use users::{register, login, get_profile, update_profile, change_password, forgot_password, reset_password, deactivate_account};
-use subscriptions::{get_subscription_plans, get_user_subscriptions, get_subscription_status, get_active_subscription, create_subscription, get_pending_subscriptions, verify_subscription};
-use follows::{follow_scholar, unfollow_scholar, update_follow_settings, get_my_followed_scholars, check_follow_status};
-use play_history::{record_play, get_my_play_history, get_most_played_files, clear_play_history, get_file_play_stats};
-use playlists::{create_playlist, get_my_playlists, get_public_playlists, get_playlist, update_playlist, delete_playlist, add_file_to_playlist, remove_file_from_playlist, get_playlist_files};
-use file_interactions::{report_file, get_pending_reports, resolve_report, like_file, unlike_file, get_file_likes, check_file_like_status, create_comment, get_file_comments, update_comment, delete_comment, get_file_download_stats, get_my_download_history};
+use subscriptions::{
+    create_subscription, get_active_subscription, get_pending_subscriptions,
+    get_subscription_plans, get_subscription_status, get_user_subscriptions, verify_subscription,
+};
+use uploads::{download_file, upload_file};
+use users::{
+    change_password, deactivate_account, forgot_password, get_profile, login, register,
+    reset_password, update_profile,
+};
 mod books;
+mod file_interactions;
 mod files;
+mod follows;
 mod health_check;
+mod permissions;
+mod play_history;
+mod playlists;
+mod related_files;
 mod scholars;
 mod search;
 mod states;
-mod permissions;
+mod subscriptions;
 mod uploads;
 mod users;
-mod subscriptions;
-mod follows;
-mod play_history;
-mod playlists;
-mod file_interactions;
 
 use crate::routes::health_check::*;
 const IMAGES_DIR: &str = "/home/mubarak/Documents/my-documents/muryar_sunnah/web/images";
@@ -54,6 +77,7 @@ fn files_routes() -> Scope {
         .service(get_recent_files)
         .service(view_file)
         .service(get_related_files)
+        .service(get_file_suggestions) // New endpoint for next/previous suggestions
         .service(download_file)
         // file_interactions_routes
         .service(report_file)
@@ -69,7 +93,6 @@ fn files_routes() -> Scope {
         .service(delete_comment)
         .service(get_file_download_stats)
         .service(get_my_download_history)
-
 }
 
 fn auth_routes() -> Scope {
