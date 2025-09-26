@@ -17,6 +17,21 @@ pub struct Files {
     pub downloads: i32,
 }
 
+#[derive(Serialize)]
+pub struct FilesWithStats {
+    pub file_id: i32,
+    pub file_name: String,
+    pub file_url: String,
+    pub file_size: String,
+    pub book_id: i32,
+    pub file_duration: String,
+    pub scholar_id: i32,
+    pub scholar_name: String,
+    pub scholar_image: String,
+    pub date: DateTime<Local>,
+    pub statistics: FileStatistics,
+}
+
 #[derive(FromRow, Serialize)]
 pub struct RecentFiles {
     pub file_id: i32,
@@ -30,6 +45,30 @@ pub struct RecentFiles {
     pub scholar_name: String,
     pub scholar_image: String,
     pub date: DateTime<Local>,
+}
+
+#[derive(Serialize)]
+pub struct RecentFilesWithStats {
+    pub file_id: i32,
+    pub file_name: String,
+    pub file_url: String,
+    pub file_size: String,
+    pub file_duration: String,
+    pub book_id: i32,
+    pub scholar_id: i32,
+    pub scholar_name: String,
+    pub scholar_image: String,
+    pub date: DateTime<Local>,
+    pub statistics: FileStatistics,
+}
+
+#[derive(Debug, Serialize)]
+pub struct FileStatistics {
+    pub total_downloads: i64,
+    pub total_plays: i64,
+    pub total_likes: i64,
+    pub total_comments: i64,
+    pub is_liked_by_user: Option<bool>, // Will be None if no user context
 }
 
 #[derive(Debug, Serialize)]

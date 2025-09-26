@@ -1,5 +1,5 @@
 use crate::core::AppError;
-use crate::models::files::{FileSearchResult, Files, RecentFiles, RelatedFiles, ViewFileDetails};
+use crate::models::files::{FileSearchResult, Files, RecentFiles, RelatedFiles, ViewFileDetails, FilesWithStats, RecentFilesWithStats, FileStatistics};
 use crate::models::pagination::PaginationQuery;
 use sqlx::MySqlPool;
 
@@ -267,4 +267,193 @@ pub async fn create_file_record(
     })?;
 
     Ok(result.last_insert_id() as i32)
+}
+pub async fn fetch_files_by_book_with_stats(
+    pool: &MySqlPool,
+    book_id: i32,
+    pagination: &PaginationQuery,
+    user_id: Option<i32>,
+) -> Result<(Vec<FilesWithStats>, i64), AppError> {
+    let files = sqlx::query_as!(
+        Files,
+        "SELECT
+            f.id as file_id,
+            f.name as file_name,
+            f.book as book_id,
+            f.size as file_size,
+            f.duration as file_duration,
+            f.date,
+            f.downloads,
+            COALESCE(CONCAT('http://127.0.0.1:8990/api/v1/static/uploads/', f.location), '') AS file_url,
+            s.id as scholar_id,
+            s.name as scholar_name,
+            COALESCE(CONCAT('http://127.0.0.1:8990/api/v1/static/images/', s.image), '') AS scholar_image
+        FROM tbl_files f
+        JOIN tbl_scholars s ON f.scholar = s.id
+        WHERE f.status = 'active'
+        AND f.book = ?
+        LIMIT ? OFFSET ?",
+        book_id,
+        pagination.per_page,
+        pagination.offset()
+    )
+    .fetch_all(pool)
+    .await
+    .map_err(AppError::db_error)?;
+
+    let total_count: i64 = sqlx::query_scalar!(
+        "SELECT COUNT(*) FROM tbl_files WHERE book = ? AND status = 'active'",
+        book_id
+    )
+    .fetch_one(pool)
+    .await
+    .map_err(AppError::db_error)?;
+
+    // Convert Files to FilesWithStats by adding statistics
+    let mut files_with_stats = Vec::new();
+    for file in files {
+        let statistics = get_file_statistics(pool, file.file_id, user_id).await?;
+        files_with_stats.push(FilesWithStats {
+            file_id: file.file_id,
+            file_name: file.file_name,
+            file_url: file.file_url,
+            file_size: file.file_size,
+            book_id: file.book_id,
+            file_duration: file.file_duration,
+            scholar_id: file.scholar_id,
+            scholar_name: file.scholar_name,
+            scholar_image: file.scholar_image,
+            date: file.date,
+            statistics,
+        });
+    }
+
+    Ok((files_with_stats, total_count))
+}
+
+pub async fn fetch_recent_files_with_stats(
+    pool: &MySqlPool,
+    pagination: &PaginationQuery,
+    user_id: Option<i32>,
+) -> Result<(Vec<RecentFilesWithStats>, i64), AppError> {
+    let files = sqlx::query_as!(
+        RecentFiles,
+        r#"
+        SELECT
+            f.id as file_id,
+            f.name as file_name,
+            f.book as book_id,
+            f.size as file_size,
+            f.duration as file_duration,
+            f.date,
+            f.downloads,
+            COALESCE(CONCAT('http://127.0.0.1:8990/api/v1/static/uploads/', f.location), '') AS "file_url!",
+            s.id as scholar_id,
+            s.name as scholar_name,
+            COALESCE(CONCAT('http://127.0.0.1:8990/api/v1/static/images/', s.image), '') AS "scholar_image!"
+        FROM tbl_files f
+        JOIN tbl_scholars s ON f.scholar = s.id
+        WHERE f.status = 'active'
+        ORDER BY f.date DESC
+        LIMIT ? OFFSET ?
+        "#,
+        pagination.per_page,
+        pagination.offset()
+    )
+    .fetch_all(pool)
+    .await
+    .map_err(AppError::db_error)?;
+
+    let total_count: i64 =
+        sqlx::query_scalar!("SELECT COUNT(*) FROM tbl_files WHERE status = 'active'")
+            .fetch_one(pool)
+            .await
+            .map_err(AppError::db_error)?;
+
+    // Convert RecentFiles to RecentFilesWithStats by adding statistics
+    let mut files_with_stats = Vec::new();
+    for file in files {
+        let statistics = get_file_statistics(pool, file.file_id, user_id).await?;
+        files_with_stats.push(RecentFilesWithStats {
+            file_id: file.file_id,
+            file_name: file.file_name,
+            file_url: file.file_url,
+            file_size: file.file_size,
+            file_duration: file.file_duration,
+            book_id: file.book_id,
+            scholar_id: file.scholar_id,
+            scholar_name: file.scholar_name,
+            scholar_image: file.scholar_image,
+            date: file.date,
+            statistics,
+        });
+    }
+
+    Ok((files_with_stats, total_count))
+}
+
+pub async fn get_file_statistics(
+    pool: &MySqlPool,
+    file_id: i32,
+    user_id: Option<i32>,
+) -> Result<FileStatistics, AppError> {
+    // Get total downloads
+    let total_downloads: i64 = sqlx::query_scalar!(
+        "SELECT COUNT(*) FROM tbl_download_logs WHERE file_id = ?",
+        file_id
+    )
+    .fetch_one(pool)
+    .await
+    .map_err(AppError::db_error)?;
+
+    // Get total plays
+    let total_plays: i64 = sqlx::query_scalar!(
+        "SELECT COUNT(*) FROM tbl_play_history WHERE file_id = ?",
+        file_id
+    )
+    .fetch_one(pool)
+    .await
+    .map_err(AppError::db_error)?;
+
+    // Get total likes
+    let total_likes: i64 = sqlx::query_scalar!(
+        "SELECT COUNT(*) FROM tbl_file_likes WHERE file_id = ?",
+        file_id
+    )
+    .fetch_one(pool)
+    .await
+    .map_err(AppError::db_error)?;
+
+    // Get total comments
+    let total_comments: i64 = sqlx::query_scalar!(
+        "SELECT COUNT(*) FROM tbl_file_comments WHERE file_id = ? AND is_approved = 1",
+        file_id
+    )
+    .fetch_one(pool)
+    .await
+    .map_err(AppError::db_error)?;
+
+    // Check if user has liked this file (if user_id is provided)
+    let is_liked_by_user = if let Some(uid) = user_id {
+        let like_count: i64 = sqlx::query_scalar!(
+            "SELECT COUNT(*) FROM tbl_file_likes WHERE file_id = ? AND user_id = ?",
+            file_id,
+            uid
+        )
+        .fetch_one(pool)
+        .await
+        .map_err(AppError::db_error)?;
+        
+        Some(like_count > 0)
+    } else {
+        None
+    };
+
+    Ok(FileStatistics {
+        total_downloads,
+        total_plays,
+        total_likes,
+        total_comments,
+        is_liked_by_user,
+    })
 }
