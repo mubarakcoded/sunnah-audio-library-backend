@@ -15,8 +15,8 @@ use crate::{
 #[derive(Deserialize)]
 pub struct SearchParams {
     pub q: String, // search query
-    pub page: Option<i64>,
-    pub items_per_page: Option<i64>,
+    pub page: Option<i32>,
+    pub per_page: Option<i32>,
 }
 
 #[instrument(name = "Search Scholars, Books, Files", skip(pool, query))]

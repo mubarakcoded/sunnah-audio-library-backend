@@ -89,8 +89,8 @@ pub async fn fetch_recent_files(
 pub async fn search_files(
     pool: &MySqlPool,
     search_term: &str,
-    page: i64,
-    items_per_page: i64,
+    page: i32,
+    items_per_page: i32,
 ) -> Result<(Vec<FileSearchResult>, i64), AppError> {
     let offset = (page - 1) * items_per_page;
 
@@ -243,11 +243,11 @@ pub async fn create_file_record(
     pool: &MySqlPool,
     name: &str,
     location: &str,
-    size: i64,
+    size: i32,
     duration: Option<f64>,
     book_id: i32,
     scholar_id: i32,
-) -> Result<i64, AppError> {
+) -> Result<i32, AppError> {
     let result = sqlx::query!(
         r#"
         INSERT INTO tbl_files (name, location, size, duration, book, scholar, status, created_at, date)
@@ -267,5 +267,5 @@ pub async fn create_file_record(
         AppError::db_error(e.to_string())
     })?;
 
-    Ok(result.last_insert_id() as i64)
+    Ok(result.last_insert_id() as i32)
 }

@@ -39,8 +39,8 @@ pub async fn fetch_books_by_scholar(
 pub async fn search_books(
     pool: &MySqlPool,
     search_term: &str,
-    page: i64,
-    per_page: i64,
+    page: i32,
+    per_page: i32,
 ) -> Result<(Vec<BookSearchResult>, i64), AppError> {
     let offset = (page - 1) * per_page;
 

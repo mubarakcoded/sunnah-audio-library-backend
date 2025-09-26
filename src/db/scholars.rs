@@ -72,8 +72,8 @@ pub async fn fetch_scholars_by_state(
 pub async fn search_scholars(
     pool: &MySqlPool,
     search_term: &str,
-    page: i64,
-    items_per_page: i64,
+    page: i32,
+    items_per_page: i32,
 ) -> Result<(Vec<ScholarSearchResult>, i64), AppError> {
     let offset = (page - 1) * items_per_page;
 
