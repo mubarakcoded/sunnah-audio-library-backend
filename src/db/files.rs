@@ -1,4 +1,4 @@
-use crate::core::{calculate_total_duration_from_strings, AppError};
+use crate::core::{calculate_total_duration_from_strings, AppConfig, AppError};
 use crate::models::files::{
     FileSearchResult, FileStatistics, Files, FilesWithStats, RecentFiles, RecentFilesWithStats,
     RelatedFiles, ViewFileDetails,
@@ -8,11 +8,11 @@ use sqlx::MySqlPool;
 
 pub async fn fetch_files_by_book(
     pool: &MySqlPool,
+    config: &AppConfig,
     book_id: i32,
     pagination: &PaginationQuery,
 ) -> Result<(Vec<Files>, i64), AppError> {
-    let files = sqlx::query_as!(
-        Files,
+    let raw_files = sqlx::query!(
         "SELECT
             f.id as file_id,
             f.name as file_name,
@@ -21,10 +21,10 @@ pub async fn fetch_files_by_book(
             f.duration as file_duration,
             f.date,
             f.downloads,
-            COALESCE(CONCAT('http://127.0.0.1:8990/api/v1/static/uploads/', f.location), '') AS file_url,
+            f.location,
             s.id as scholar_id,
             s.name as scholar_name,
-            COALESCE(CONCAT('http://127.0.0.1:8990/api/v1/static/images/', s.image), '') AS scholar_image
+            s.image as scholar_image
         FROM tbl_files f
         JOIN tbl_scholars s ON f.scholar = s.id
         WHERE f.status = 'active'
@@ -37,6 +37,24 @@ pub async fn fetch_files_by_book(
     .fetch_all(pool)
     .await
     .map_err(AppError::db_error)?;
+
+    // Convert raw data to Files struct with formatted URLs
+    let files: Vec<Files> = raw_files
+        .into_iter()
+        .map(|row| Files {
+            file_id: row.file_id,
+            file_name: row.file_name,
+            file_url: config.get_upload_url(&row.location),
+            file_size: row.file_size,
+            book_id: row.book_id,
+            file_duration: row.file_duration,
+            scholar_id: row.scholar_id,
+            scholar_name: row.scholar_name,
+            scholar_image: config.get_image_url(&row.scholar_image),
+            date: row.date.into(),
+            downloads: row.downloads,
+        })
+        .collect();
 
     let total_count: i64 = sqlx::query_scalar!(
         "SELECT COUNT(*) FROM tbl_files WHERE book = ? AND status = 'active'",
@@ -51,10 +69,10 @@ pub async fn fetch_files_by_book(
 
 pub async fn fetch_recent_files(
     pool: &MySqlPool,
+    config: &AppConfig,
     pagination: &PaginationQuery,
 ) -> Result<(Vec<RecentFiles>, i64), AppError> {
-    let files = sqlx::query_as!(
-        RecentFiles,
+    let raw_files = sqlx::query!(
         r#"
         SELECT
             f.id as file_id,
@@ -64,12 +82,13 @@ pub async fn fetch_recent_files(
             f.duration as file_duration,
             f.date,
             f.downloads,
-            COALESCE(CONCAT('http://127.0.0.1:8990/api/v1/static/uploads/', f.location), '') AS "file_url!",
+            f.location,
             s.id as scholar_id,
             s.name as scholar_name,
-            COALESCE(CONCAT('http://127.0.0.1:8990/api/v1/static/images/', s.image), '') AS "scholar_image!"
+            s.image as scholar_image
         FROM tbl_files f
         JOIN tbl_scholars s ON f.scholar = s.id
+        WHERE f.status = 'active'
         ORDER BY f.date DESC
         LIMIT ? OFFSET ?
         "#,
@@ -79,6 +98,24 @@ pub async fn fetch_recent_files(
     .fetch_all(pool)
     .await
     .map_err(AppError::db_error)?;
+
+    // Convert raw data to RecentFiles struct with formatted URLs
+    let files: Vec<RecentFiles> = raw_files
+        .into_iter()
+        .map(|row| RecentFiles {
+            file_id: row.file_id,
+            file_name: row.file_name,
+            file_url: config.get_upload_url(&row.location),
+            file_size: row.file_size,
+            file_duration: row.file_duration,
+            downloads: row.downloads,
+            book_id: row.book_id,
+            scholar_id: row.scholar_id,
+            scholar_name: row.scholar_name,
+            scholar_image: config.get_image_url(&row.scholar_image),
+            date: row.date.into(),
+        })
+        .collect();
 
     let total_count: i64 =
         sqlx::query_scalar!("SELECT COUNT(*) FROM tbl_files WHERE status = 'active'")
@@ -273,12 +310,12 @@ pub async fn create_file_record(
 }
 pub async fn fetch_files_by_book_with_stats(
     pool: &MySqlPool,
+    config: &AppConfig,
     book_id: i32,
     pagination: &PaginationQuery,
     user_id: Option<i32>,
 ) -> Result<(Vec<FilesWithStats>, i64), AppError> {
-    let files = sqlx::query_as!(
-        Files,
+    let raw_files = sqlx::query!(
         "SELECT
             f.id as file_id,
             f.name as file_name,
@@ -287,10 +324,10 @@ pub async fn fetch_files_by_book_with_stats(
             f.duration as file_duration,
             f.date,
             f.downloads,
-            COALESCE(CONCAT('http://127.0.0.1:8990/api/v1/static/uploads/', f.location), '') AS file_url,
+            f.location,
             s.id as scholar_id,
             s.name as scholar_name,
-            COALESCE(CONCAT('http://127.0.0.1:8990/api/v1/static/images/', s.image), '') AS scholar_image
+            s.image as scholar_image
         FROM tbl_files f
         JOIN tbl_scholars s ON f.scholar = s.id
         WHERE f.status = 'active'
@@ -312,21 +349,21 @@ pub async fn fetch_files_by_book_with_stats(
     .await
     .map_err(AppError::db_error)?;
 
-    // Convert Files to FilesWithStats by adding statistics
+    // Convert raw data to FilesWithStats by adding statistics and formatting URLs
     let mut files_with_stats = Vec::new();
-    for file in files {
-        let statistics = get_file_statistics(pool, file.file_id, user_id).await?;
+    for row in raw_files {
+        let statistics = get_file_statistics(pool, row.file_id, user_id).await?;
         files_with_stats.push(FilesWithStats {
-            file_id: file.file_id,
-            file_name: file.file_name,
-            file_url: file.file_url,
-            file_size: file.file_size,
-            book_id: file.book_id,
-            file_duration: file.file_duration,
-            scholar_id: file.scholar_id,
-            scholar_name: file.scholar_name,
-            scholar_image: file.scholar_image,
-            date: file.date,
+            file_id: row.file_id,
+            file_name: row.file_name,
+            file_url: config.get_upload_url(&row.location),
+            file_size: row.file_size,
+            book_id: row.book_id,
+            file_duration: row.file_duration,
+            scholar_id: row.scholar_id,
+            scholar_name: row.scholar_name,
+            scholar_image: config.get_image_url(&row.scholar_image),
+            date: row.date.into(),
             statistics,
         });
     }
@@ -336,11 +373,11 @@ pub async fn fetch_files_by_book_with_stats(
 
 pub async fn fetch_recent_files_with_stats(
     pool: &MySqlPool,
+    config: &AppConfig,
     pagination: &PaginationQuery,
     user_id: Option<i32>,
 ) -> Result<(Vec<RecentFilesWithStats>, i64), AppError> {
-    let files = sqlx::query_as!(
-        RecentFiles,
+    let raw_files = sqlx::query!(
         r#"
         SELECT
             f.id as file_id,
@@ -350,10 +387,10 @@ pub async fn fetch_recent_files_with_stats(
             f.duration as file_duration,
             f.date,
             f.downloads,
-            COALESCE(CONCAT('http://127.0.0.1:8990/api/v1/static/uploads/', f.location), '') AS "file_url!",
+            f.location,
             s.id as scholar_id,
             s.name as scholar_name,
-            COALESCE(CONCAT('http://127.0.0.1:8990/api/v1/static/images/', s.image), '') AS "scholar_image!"
+            s.image as scholar_image
         FROM tbl_files f
         JOIN tbl_scholars s ON f.scholar = s.id
         WHERE f.status = 'active'
@@ -373,21 +410,21 @@ pub async fn fetch_recent_files_with_stats(
             .await
             .map_err(AppError::db_error)?;
 
-    // Convert RecentFiles to RecentFilesWithStats by adding statistics
+    // Convert raw data to RecentFilesWithStats by adding statistics and formatting URLs
     let mut files_with_stats = Vec::new();
-    for file in files {
-        let statistics = get_file_statistics(pool, file.file_id, user_id).await?;
+    for row in raw_files {
+        let statistics = get_file_statistics(pool, row.file_id, user_id).await?;
         files_with_stats.push(RecentFilesWithStats {
-            file_id: file.file_id,
-            file_name: file.file_name,
-            file_url: file.file_url,
-            file_size: file.file_size,
-            file_duration: file.file_duration,
-            book_id: file.book_id,
-            scholar_id: file.scholar_id,
-            scholar_name: file.scholar_name,
-            scholar_image: file.scholar_image,
-            date: file.date,
+            file_id: row.file_id,
+            file_name: row.file_name,
+            file_url: config.get_upload_url(&row.location),
+            file_size: row.file_size,
+            file_duration: row.file_duration,
+            book_id: row.book_id,
+            scholar_id: row.scholar_id,
+            scholar_name: row.scholar_name,
+            scholar_image: config.get_image_url(&row.scholar_image),
+            date: row.date.into(),
             statistics,
         });
     }
@@ -463,6 +500,7 @@ pub async fn get_file_statistics(
 
 pub async fn get_all_files_for_book_play_all(
     pool: &MySqlPool,
+    config: &AppConfig,
     book_id: i32,
 ) -> Result<crate::models::files::PlayAllResponse, AppError> {
     // First, get book and scholar information
@@ -486,7 +524,7 @@ pub async fn get_all_files_for_book_play_all(
     .map_err(AppError::db_error)?;
 
     // Get all files for the book, ordered by creation date
-    let files = sqlx::query!(
+    let raw_files = sqlx::query!(
         r#"
         SELECT
             f.id as file_id,
@@ -494,7 +532,7 @@ pub async fn get_all_files_for_book_play_all(
             f.size as file_size,
             f.duration as file_duration,
             f.date,
-            COALESCE(CONCAT('http://127.0.0.1:8990/api/v1/static/uploads/', f.location), '') AS file_url
+            f.location
         FROM tbl_files f
         WHERE f.book = ? AND f.status = 'active'
         ORDER BY f.date ASC, f.id ASC
@@ -505,13 +543,13 @@ pub async fn get_all_files_for_book_play_all(
     .await
     .map_err(AppError::db_error)?;
 
-    // Convert to PlayAllFile structs
-    let play_all_files: Vec<crate::models::files::PlayAllFile> = files
+    // Convert to PlayAllFile structs with formatted URLs
+    let play_all_files: Vec<crate::models::files::PlayAllFile> = raw_files
         .into_iter()
         .map(|row| crate::models::files::PlayAllFile {
             file_id: row.file_id,
             file_name: row.file_name,
-            file_url: row.file_url,
+            file_url: config.get_upload_url(&row.location),
             file_size: row.file_size,
             file_duration: row.file_duration,
             sort_order: None, // No sort_order column in database
@@ -529,16 +567,10 @@ pub async fn get_all_files_for_book_play_all(
     Ok(crate::models::files::PlayAllResponse {
         book_id: book_info.book_id,
         book_name: book_info.book_name,
-        book_image: Some(format!(
-            "http://127.0.0.1:8990/api/v1/static/images/{}",
-            book_info.book_image
-        )),
+        book_image: Some(config.get_image_url(&book_info.book_image)),
         scholar_id: book_info.scholar_id,
         scholar_name: book_info.scholar_name,
-        scholar_image: Some(format!(
-            "http://127.0.0.1:8990/api/v1/static/images/{}",
-            book_info.scholar_image
-        )),
+        scholar_image: Some(config.get_image_url(&book_info.scholar_image)),
         total_files: play_all_files.len() as i32,
         total_duration,
         files: play_all_files,

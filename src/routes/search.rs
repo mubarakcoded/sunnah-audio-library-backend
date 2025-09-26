@@ -8,7 +8,7 @@ use sqlx::MySqlPool;
 use tracing::instrument;
 
 use crate::{
-    core::{AppError, AppErrorType, AppSuccessResponse},
+    core::{AppError, AppErrorType, AppSuccessResponse, AppConfig},
     db::{books, files, scholars}, models::pagination::PaginationMeta,
 };
 
@@ -23,6 +23,7 @@ pub struct SearchParams {
 #[get("/search")]
 pub async fn full_text_search(
     pool: web::Data<MySqlPool>,
+    config: web::Data<AppConfig>,
     query: web::Query<SearchParams>,
 ) -> Result<impl Responder, AppError> {
     let search_term = query.q.trim();
@@ -39,8 +40,8 @@ pub async fn full_text_search(
     // Run searches concurrently
 
     let (scholars_res, books_res, files_res) = tokio::join!(
-        scholars::search_scholars(pool.get_ref(), search_term, page, per_page),
-        books::search_books(pool.get_ref(), search_term, page, per_page),
+        scholars::search_scholars(pool.get_ref(), &config, search_term, page, per_page),
+        books::search_books(pool.get_ref(), &config, search_term, page, per_page),
         files::search_files(pool.get_ref(), search_term, page, per_page),
     );
 

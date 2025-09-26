@@ -1,4 +1,4 @@
-use crate::core::AppError;
+use crate::core::{AppError, AppConfig};
 use crate::models::books::{Book, BookSearchResult, BookDetails, BookStatistics};
 use crate::models::pagination::PaginationQuery;
 use sqlx::MySqlPool;
@@ -6,15 +6,15 @@ use chrono::Utc;
 
 pub async fn fetch_books_by_scholar(
     pool: &MySqlPool,
+    config: &AppConfig,
     scholar_id: i32,
     pagination: &PaginationQuery,
 ) -> Result<(Vec<Book>, i64), AppError> {
-    let books = sqlx::query_as!(
-        Book,
+    let raw_books = sqlx::query!(
         "SELECT
         id,
         name,
-        COALESCE(CONCAT('http://127.0.0.1:8990/api/v1/static/images/', image), '') AS image
+        image
         FROM tbl_books 
         WHERE scholar_id = ? AND status = 'active'
         LIMIT ? OFFSET ?",
@@ -25,6 +25,16 @@ pub async fn fetch_books_by_scholar(
     .fetch_all(pool)
     .await
     .map_err(AppError::db_error)?;
+
+    // Convert raw data to Book struct with formatted URLs
+    let books: Vec<Book> = raw_books
+        .into_iter()
+        .map(|row| Book {
+            id: row.id,
+            name: row.name,
+            image: config.get_image_url(&row.image),
+        })
+        .collect();
 
     let total_count: i64 = sqlx::query_scalar!(
         "SELECT COUNT(*) FROM tbl_books WHERE scholar_id = ? AND status = 'active'",
@@ -39,19 +49,19 @@ pub async fn fetch_books_by_scholar(
 
 pub async fn search_books(
     pool: &MySqlPool,
+    config: &AppConfig,
     search_term: &str,
     page: i32,
     per_page: i32,
 ) -> Result<(Vec<BookSearchResult>, i64), AppError> {
     let offset = (page - 1) * per_page;
 
-    let books = sqlx::query_as!(
-        BookSearchResult,
+    let raw_books = sqlx::query!(
         r#"
         SELECT 
             b.id,
             b.name,
-            CONCAT('http://127.0.0.1:8990/api/v1/static/images/', b.image) AS image
+            b.image
         FROM tbl_books b
         WHERE (b.name LIKE ? OR b.about LIKE ?) AND b.status = 'active'
         LIMIT ? OFFSET ?
@@ -64,6 +74,16 @@ pub async fn search_books(
     .fetch_all(pool)
     .await
     .map_err(|e| AppError::db_error(e))?;
+
+    // Convert raw data to BookSearchResult with formatted URLs
+    let books: Vec<BookSearchResult> = raw_books
+        .into_iter()
+        .map(|row| BookSearchResult {
+            id: row.id,
+            name: Some(row.name),
+            image: Some(config.get_image_url(&row.image)),
+        })
+        .collect();
 
     let total_count: i64 = sqlx::query_scalar!(
         r#"
@@ -82,6 +102,7 @@ pub async fn search_books(
 }
 pub async fn get_book_details(
     pool: &MySqlPool,
+    config: &AppConfig,
     book_id: i32,
 ) -> Result<BookDetails, AppError> {
     // Get basic book information with scholar details
@@ -109,7 +130,7 @@ pub async fn get_book_details(
         about: Some(book_row.about),
         scholar_id: book_row.scholar_id,
         scholar_name: book_row.scholar_name,
-        image: Some(format!("http://127.0.0.1:8990/api/v1/static/images/{}", book_row.image)),
+        image: Some(config.get_image_url(&book_row.image)),
         created_at: Utc::now().naive_utc(), // Using current time as placeholder
         updated_at: Utc::now().naive_utc(), // Using current time as placeholder
         statistics,

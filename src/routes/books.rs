@@ -1,5 +1,5 @@
 use crate::{
-    core::{AppError, AppErrorType, AppSuccessResponse},
+    core::{AppError, AppErrorType, AppSuccessResponse, AppConfig},
     db::books,
     models::pagination::{PaginationMeta, PaginationQuery},
 };
@@ -16,6 +16,7 @@ use tracing::instrument;
 #[get("/{scholar_id}/books")]
 pub async fn get_books_by_scholar(
     pool: web::Data<MySqlPool>,
+    config: web::Data<AppConfig>,
     scholar_id: web::Path<i32>,
     pagination: web::Query<PaginationQuery>,
 ) -> Result<impl Responder, AppError> {
@@ -24,6 +25,7 @@ pub async fn get_books_by_scholar(
 
     let (data, total_items) = books::fetch_books_by_scholar(
         pool.get_ref(),
+        &config,
         scholar_id.into_inner(),
         &pagination,
     )
@@ -54,11 +56,12 @@ pub async fn get_books_by_scholar(
 #[get("/{book_id}")]
 pub async fn get_book_details(
     pool: web::Data<MySqlPool>,
+    config: web::Data<AppConfig>,
     book_id: web::Path<i32>,
 ) -> Result<impl Responder, AppError> {
     let book_id = book_id.into_inner();
 
-    let book_details = books::get_book_details(pool.get_ref(), book_id)
+    let book_details = books::get_book_details(pool.get_ref(), &config, book_id)
         .await
         .map_err(|e| {
             tracing::error!("Failed to fetch book details: {:?}", e);

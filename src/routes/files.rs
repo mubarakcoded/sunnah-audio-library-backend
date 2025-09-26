@@ -28,6 +28,7 @@ pub async fn get_files_by_book(
 
     let (data, total_items) = files::fetch_files_by_book_with_stats(
         pool.get_ref(),
+        &config,
         book_id.into_inner(),
         &pagination,
         user_id,
@@ -66,7 +67,7 @@ pub async fn get_recent_files(
     let user_id = extract_user_id_from_request(&req, &config);
 
     let (data, total_items) =
-        files::fetch_recent_files_with_stats(pool.get_ref(), &pagination, user_id)
+        files::fetch_recent_files_with_stats(pool.get_ref(), &config, &pagination, user_id)
             .await
             .map_err(|e| {
                 tracing::error!("Failed to fetch recent files: {:?}", e);
@@ -150,16 +151,16 @@ pub async fn get_related_files(
         pagination: Some(pagination_meta),
     }))
 }
-#[instrument(name = "Get All Files for Play All", skip(pool, _config))]
+#[instrument(name = "Get All Files for Play All", skip(pool, config))]
 #[get("/{book_id}/play-all")]
 pub async fn get_all_files_for_play_all(
     pool: web::Data<MySqlPool>,
-    _config: web::Data<AppConfig>,
+    config: web::Data<AppConfig>,
     book_id: web::Path<i32>,
 ) -> Result<impl Responder, AppError> {
     let book_id = book_id.into_inner();
 
-    let play_all_data = files::get_all_files_for_book_play_all(pool.get_ref(), book_id)
+    let play_all_data = files::get_all_files_for_book_play_all(pool.get_ref(), &config, book_id)
         .await
         .map_err(|e| {
             tracing::error!("Failed to fetch files for play all: {:?}", e);

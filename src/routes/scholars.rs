@@ -16,12 +16,13 @@ use tracing::instrument;
 #[get("")]
 pub async fn get_scholars(
     pool: web::Data<MySqlPool>,
+    config: web::Data<AppConfig>,
     pagination: web::Query<PaginationQuery>,
 ) -> Result<impl Responder, AppError> {
     let mut pagination = pagination.into_inner();
     pagination.validate();
 
-    let (data, total_items) = scholars::fetch_scholars(pool.get_ref(), &pagination)
+    let (data, total_items) = scholars::fetch_scholars(pool.get_ref(), &config, &pagination)
         .await
         .map_err(|e| {
             tracing::error!("Failed to fetch scholars: {:?}", e);
@@ -50,6 +51,7 @@ pub async fn get_scholars(
 #[get("/state/{state_id}")]
 pub async fn get_scholars_by_state(
     pool: web::Data<MySqlPool>,
+    config: web::Data<AppConfig>,
     state_id: web::Path<i32>,
     pagination: web::Query<PaginationQuery>,
 ) -> Result<impl Responder, AppError> {
@@ -58,6 +60,7 @@ pub async fn get_scholars_by_state(
 
     let (data, total_items) = scholars::fetch_scholars_by_state(
         pool.get_ref(),
+        &config,
         state_id.into_inner(),
         &pagination,
     )
@@ -91,7 +94,7 @@ pub async fn get_scholar_details(
     let scholar_id = scholar_id.into_inner();
     let user_id = extract_user_id_from_request(&req, &config);
 
-    let scholar_details = scholars::get_scholar_details(pool.get_ref(), scholar_id, user_id)
+    let scholar_details = scholars::get_scholar_details(pool.get_ref(), &config, scholar_id, user_id)
         .await
         .map_err(|e| {
             tracing::error!("Failed to fetch scholar details: {:?}", e);

@@ -1,4 +1,4 @@
-use crate::core::AppError;
+use crate::core::{AppError, AppConfig};
 use crate::models::pagination::PaginationQuery;
 use crate::models::scholars::{Scholar, ScholarDetails, ScholarSearchResult, ScholarStatistics};
 use chrono::Utc;
@@ -6,14 +6,14 @@ use sqlx::MySqlPool;
 
 pub async fn fetch_scholars(
     pool: &MySqlPool,
+    config: &AppConfig,
     pagination: &PaginationQuery,
 ) -> Result<(Vec<Scholar>, i64), AppError> {
-    let scholars = sqlx::query_as!(
-        Scholar,
+    let raw_scholars = sqlx::query!(
         "SELECT 
             tbl_scholars.id,
             tbl_scholars.name,
-            CONCAT('http://127.0.0.1:8990/api/v1/static/images/', tbl_scholars.image) AS image,
+            tbl_scholars.image,
             tbl_states.name AS state
         FROM tbl_scholars
         JOIN tbl_states ON tbl_scholars.state = tbl_states.id
@@ -26,6 +26,17 @@ pub async fn fetch_scholars(
     .await
     .map_err(AppError::db_error)?;
 
+    // Convert raw data to Scholar struct with formatted URLs
+    let scholars: Vec<Scholar> = raw_scholars
+        .into_iter()
+        .map(|row| Scholar {
+            id: row.id,
+            name: row.name,
+            image: Some(config.get_image_url(&row.image)),
+            state: row.state,
+        })
+        .collect();
+
     let total_count: i64 =
         sqlx::query_scalar!("SELECT COUNT(*) FROM tbl_scholars WHERE status = 'active'")
             .fetch_one(pool)
@@ -37,15 +48,15 @@ pub async fn fetch_scholars(
 
 pub async fn fetch_scholars_by_state(
     pool: &MySqlPool,
+    config: &AppConfig,
     state_id: i32,
     pagination: &PaginationQuery,
 ) -> Result<(Vec<Scholar>, i64), AppError> {
-    let scholars = sqlx::query_as!(
-        Scholar,
+    let raw_scholars = sqlx::query!(
         "SELECT 
             tbl_scholars.id,
             tbl_scholars.name,
-            CONCAT('http://127.0.0.1:8990/api/v1/static/images/', tbl_scholars.image) AS image,
+            tbl_scholars.image,
             tbl_states.name AS state
         FROM tbl_scholars
         JOIN tbl_states ON tbl_scholars.state = tbl_states.id
@@ -58,6 +69,17 @@ pub async fn fetch_scholars_by_state(
     .fetch_all(pool)
     .await
     .map_err(AppError::db_error)?;
+
+    // Convert raw data to Scholar struct with formatted URLs
+    let scholars: Vec<Scholar> = raw_scholars
+        .into_iter()
+        .map(|row| Scholar {
+            id: row.id,
+            name: row.name,
+            image: Some(config.get_image_url(&row.image)),
+            state: row.state,
+        })
+        .collect();
 
     let total_count: i64 = sqlx::query_scalar!(
         "SELECT COUNT(*) FROM tbl_scholars WHERE state = ? AND status = 'active'",
@@ -72,19 +94,19 @@ pub async fn fetch_scholars_by_state(
 
 pub async fn search_scholars(
     pool: &MySqlPool,
+    config: &AppConfig,
     search_term: &str,
     page: i32,
     items_per_page: i32,
 ) -> Result<(Vec<ScholarSearchResult>, i64), AppError> {
     let offset = (page - 1) * items_per_page;
 
-    let scholars = sqlx::query_as!(
-        ScholarSearchResult,
+    let raw_scholars = sqlx::query!(
         r#"
         SELECT 
             tbl_scholars.id,
             tbl_scholars.name,
-            CONCAT('http://yourdomain.com/images/scholars/', tbl_scholars.image) AS image,
+            tbl_scholars.image,
             tbl_states.name AS state
         FROM tbl_scholars
         JOIN tbl_states ON tbl_scholars.state = tbl_states.id
@@ -100,6 +122,17 @@ pub async fn search_scholars(
     .fetch_all(pool)
     .await
     .map_err(|e| AppError::db_error(e))?;
+
+    // Convert raw data to ScholarSearchResult with formatted URLs
+    let scholars: Vec<ScholarSearchResult> = raw_scholars
+        .into_iter()
+        .map(|row| ScholarSearchResult {
+            id: row.id,
+            name: row.name,
+            image: Some(config.get_image_url(&row.image)),
+            state: Some(row.state),
+        })
+        .collect();
 
     let total_count: i64 = sqlx::query_scalar!(
         r#"
@@ -119,6 +152,7 @@ pub async fn search_scholars(
 
 pub async fn get_scholar_details(
     pool: &MySqlPool,
+    config: &AppConfig,
     scholar_id: i32,
     user_id: Option<i32>,
 ) -> Result<ScholarDetails, AppError> {
@@ -153,7 +187,7 @@ pub async fn get_scholar_details(
         name: scholar_row.name,
         about: Some(scholar_row.about),
         state: scholar_row.state_name,
-        image: Some(format!("http://127.0.0.1:8990/api/v1/static/images/{}", scholar_row.image)),
+        image: Some(config.get_image_url(&scholar_row.image)),
         created_at: Utc::now().naive_utc(), // Using current time as placeholder
         updated_at: Utc::now().naive_utc(), // Using current time as placeholder
         statistics,
