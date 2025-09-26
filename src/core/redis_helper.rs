@@ -86,7 +86,7 @@ impl RedisHelper {
     pub async fn lpush<T: Serialize>(&self, key: &str, value: &T) -> Result<(), RedisError> {
         let mut conn = self.get_conn().await?;
         let serialized = serde_json::to_string(value)?;
-        conn.lpush(key, serialized).await?;
+        conn.lpush::<_, _, ()>(key, serialized).await?;
         Ok(())
     }
 
