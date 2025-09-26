@@ -104,6 +104,7 @@ pub async fn get_book_details(
     pool: &MySqlPool,
     config: &AppConfig,
     book_id: i32,
+    user_id: Option<i32>,
 ) -> Result<BookDetails, AppError> {
     // Get basic book information with scholar details
     let book_row = sqlx::query!(
@@ -124,6 +125,13 @@ pub async fn get_book_details(
     // Get statistics
     let statistics = get_book_statistics(pool, book_id).await?;
 
+    // Check if user has access to this book's scholar (for managers)
+    let has_access = if let Some(uid) = user_id {
+        check_user_has_book_access(pool, uid, book_row.scholar_id).await?
+    } else {
+        None
+    };
+
     Ok(BookDetails {
         id: book_row.id,
         name: book_row.name,
@@ -134,6 +142,7 @@ pub async fn get_book_details(
         created_at: Utc::now().naive_utc(), // Using current time as placeholder
         updated_at: Utc::now().naive_utc(), // Using current time as placeholder
         statistics,
+        has_access,
     })
 }
 
@@ -203,4 +212,157 @@ pub async fn get_book_statistics(
         total_likes,
         average_rating,
     })
+}
+
+pub async fn check_user_has_book_access(
+    pool: &MySqlPool,
+    user_id: i32,
+    scholar_id: i32,
+) -> Result<Option<bool>, AppError> {
+    // First check if user is admin
+    let user_role = sqlx::query_scalar!(
+        "SELECT role FROM tbl_users WHERE id = ?",
+        user_id
+    )
+    .fetch_one(pool)
+    .await
+    .map_err(AppError::db_error)?;
+
+    if user_role == "admin" {
+        return Ok(Some(true));
+    }
+
+    // Check if user has specific access to this scholar
+    let access_count: i64 = sqlx::query_scalar!(
+        "SELECT COUNT(*) FROM tbl_access WHERE user_id = ? AND scholar_id = ?",
+        user_id,
+        scholar_id
+    )
+    .fetch_one(pool)
+    .await
+    .map_err(AppError::db_error)?;
+
+    Ok(Some(access_count > 0))
+}
+
+pub async fn get_books_dropdown(
+    pool: &MySqlPool,
+    scholar_id: Option<i32>,
+) -> Result<Vec<crate::models::books::BookDropdown>, AppError> {
+    let books = if let Some(sid) = scholar_id {
+        sqlx::query_as!(
+            crate::models::books::BookDropdown,
+            r#"
+            SELECT b.id, b.name, b.scholar_id, s.name as scholar_name
+            FROM tbl_books b
+            JOIN tbl_scholars s ON b.scholar_id = s.id
+            WHERE b.scholar_id = ? AND b.status = 'active' AND s.status = 'active'
+            ORDER BY b.name
+            "#,
+            sid
+        )
+        .fetch_all(pool)
+        .await
+        .map_err(AppError::db_error)?
+    } else {
+        sqlx::query_as!(
+            crate::models::books::BookDropdown,
+            r#"
+            SELECT b.id, b.name, b.scholar_id, s.name as scholar_name
+            FROM tbl_books b
+            JOIN tbl_scholars s ON b.scholar_id = s.id
+            WHERE b.status = 'active' AND s.status = 'active'
+            ORDER BY s.name, b.name
+            "#
+        )
+        .fetch_all(pool)
+        .await
+        .map_err(AppError::db_error)?
+    };
+
+    Ok(books)
+}
+
+pub async fn create_book(
+    pool: &MySqlPool,
+    request: &crate::models::books::CreateBookRequest,
+) -> Result<i32, AppError> {
+    let now = Utc::now().naive_utc();
+    
+    let result = sqlx::query!(
+        r#"
+        INSERT INTO tbl_books (name, about, scholar_id, image, status, created_at, updated_at)
+        VALUES (?, ?, ?, ?, 'active', ?, ?)
+        "#,
+        request.name,
+        request.about,
+        request.scholar_id,
+        request.image.as_deref().unwrap_or("default.jpg"),
+        now,
+        now
+    )
+    .execute(pool)
+    .await
+    .map_err(AppError::db_error)?;
+
+    Ok(result.last_insert_id() as i32)
+}
+
+pub async fn update_book(
+    pool: &MySqlPool,
+    book_id: i32,
+    request: &crate::models::books::UpdateBookRequest,
+) -> Result<(), AppError> {
+    let now = Utc::now().naive_utc();
+
+    // Update each field individually if provided
+    if let Some(ref name) = request.name {
+        sqlx::query!(
+            "UPDATE tbl_books SET name = ?, updated_at = ? WHERE id = ? AND status = 'active'",
+            name,
+            now,
+            book_id
+        )
+        .execute(pool)
+        .await
+        .map_err(AppError::db_error)?;
+    }
+
+    if let Some(ref about) = request.about {
+        sqlx::query!(
+            "UPDATE tbl_books SET about = ?, updated_at = ? WHERE id = ? AND status = 'active'",
+            about,
+            now,
+            book_id
+        )
+        .execute(pool)
+        .await
+        .map_err(AppError::db_error)?;
+    }
+
+    if let Some(scholar_id) = request.scholar_id {
+        sqlx::query!(
+            "UPDATE tbl_books SET scholar_id = ?, updated_at = ? WHERE id = ? AND status = 'active'",
+            scholar_id,
+            now,
+            book_id
+        )
+        .execute(pool)
+        .await
+        .map_err(AppError::db_error)?;
+    }
+
+    if let Some(ref image) = request.image {
+        sqlx::query!(
+            "UPDATE tbl_books SET image = ?, updated_at = ? WHERE id = ? AND status = 'active'",
+            image,
+            now,
+            book_id
+        )
+        .execute(pool)
+        .await
+        .map_err(AppError::db_error)?;
+    }
+
+    Ok(())
 }

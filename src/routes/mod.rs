@@ -2,7 +2,7 @@ use actix_files as fs;
 
 use actix_web::web::{scope, ServiceConfig};
 use actix_web::Scope;
-use books::{get_book_details, get_book_statistics, get_books_by_scholar};
+use books::{get_book_details, get_book_statistics, get_books_by_scholar, get_books_dropdown, create_book, update_book};
 use file_interactions::{
     check_file_like_status, create_comment, delete_comment, get_file_comments,
     get_file_download_stats, get_file_likes, get_my_download_history, get_pending_reports,
