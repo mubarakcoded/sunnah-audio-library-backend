@@ -1,43 +1,16 @@
 use actix_web::{
     get,
     web::{self},
-    HttpResponse, Responder,
+    HttpResponse, Responder, HttpRequest,
 };
-use jsonwebtoken::{decode, DecodingKey, Validation};
 use sqlx::MySqlPool;
 use tracing::instrument;
 
-// Helper function to extract user ID from optional JWT token
-fn extract_user_id_from_request(req: &HttpRequest) -> Option<i32> {
-    let token = req
-        .headers()
-        .get(actix_web::http::header::AUTHORIZATION)
-        .and_then(|value| value.to_str().ok())
-        .and_then(|auth_header| {
-            if auth_header.starts_with("Bearer ") {
-                Some(auth_header[7..].to_string())
-            } else {
-                None
-            }
-        })?;
-
-    let claims = decode::<JwtClaims>(
-        &token,
-        &DecodingKey::from_secret("UDAFMIEOLANAOIEWOLADFWEALMOPNVALKAE".as_ref()),
-        &Validation::default(),
-    )
-    .ok()?
-    .claims;
-
-    claims.sub.parse().ok()
-}
-
 use crate::{
-    core::{jwt_auth::JwtClaims, AppError, AppErrorType, AppSuccessResponse},
+    core::{AppError, AppErrorType, AppSuccessResponse, extract_user_id_from_request},
     db::files,
     models::pagination::{PaginationMeta, PaginationQuery},
 };
-use actix_web::HttpRequest;
 
 #[instrument(name = "Get Files by Book", skip(pool))]
 #[get("/{book_id}/files")]

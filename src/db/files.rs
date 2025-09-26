@@ -1,4 +1,4 @@
-use crate::core::AppError;
+use crate::core::{calculate_total_duration_from_strings, AppError};
 use crate::models::files::{
     FileSearchResult, FileStatistics, Files, FilesWithStats, RecentFiles, RecentFilesWithStats,
     RelatedFiles, ViewFileDetails,
@@ -446,7 +446,7 @@ pub async fn get_file_statistics(
         .fetch_one(pool)
         .await
         .map_err(AppError::db_error)?;
-        
+
         Some(like_count > 0)
     } else {
         None
@@ -520,7 +520,11 @@ pub async fn get_all_files_for_book_play_all(
         .collect();
 
     // Calculate total duration (if needed, this is optional)
-    let total_duration = calculate_total_duration(&play_all_files);
+    let duration_strings: Vec<String> = play_all_files
+        .iter()
+        .map(|f| f.file_duration.clone())
+        .collect();
+    let total_duration = calculate_total_duration_from_strings(&duration_strings);
 
     Ok(crate::models::files::PlayAllResponse {
         book_id: book_info.book_id,
@@ -539,57 +543,4 @@ pub async fn get_all_files_for_book_play_all(
         total_duration,
         files: play_all_files,
     })
-}
-
-// Helper function to calculate total duration
-fn calculate_total_duration(files: &[crate::models::files::PlayAllFile]) -> Option<String> {
-    let mut total_seconds = 0;
-    let mut has_valid_duration = false;
-
-    for file in files {
-        if let Ok(duration) = parse_duration(&file.file_duration) {
-            total_seconds += duration;
-            has_valid_duration = true;
-        }
-    }
-
-    if has_valid_duration {
-        Some(format_duration(total_seconds))
-    } else {
-        None
-    }
-}
-
-// Helper function to parse duration string (e.g., "45:30" or "1:23:45")
-fn parse_duration(duration_str: &str) -> Result<u32, ()> {
-    let parts: Vec<&str> = duration_str.split(':').collect();
-    match parts.len() {
-        2 => {
-            // MM:SS format
-            let minutes: u32 = parts[0].parse().map_err(|_| ())?;
-            let seconds: u32 = parts[1].parse().map_err(|_| ())?;
-            Ok(minutes * 60 + seconds)
-        }
-        3 => {
-            // HH:MM:SS format
-            let hours: u32 = parts[0].parse().map_err(|_| ())?;
-            let minutes: u32 = parts[1].parse().map_err(|_| ())?;
-            let seconds: u32 = parts[2].parse().map_err(|_| ())?;
-            Ok(hours * 3600 + minutes * 60 + seconds)
-        }
-        _ => Err(()),
-    }
-}
-
-// Helper function to format duration back to string
-fn format_duration(total_seconds: u32) -> String {
-    let hours = total_seconds / 3600;
-    let minutes = (total_seconds % 3600) / 60;
-    let seconds = total_seconds % 60;
-
-    if hours > 0 {
-        format!("{}:{:02}:{:02}", hours, minutes, seconds)
-    } else {
-        format!("{}:{:02}", minutes, seconds)
-    }
 }
