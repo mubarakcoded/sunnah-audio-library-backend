@@ -1,8 +1,8 @@
 use crate::core::AppError;
 use crate::models::pagination::PaginationQuery;
-use crate::models::scholars::{Scholar, ScholarSearchResult, ScholarDetails, ScholarStatistics};
-use sqlx::MySqlPool;
+use crate::models::scholars::{Scholar, ScholarDetails, ScholarSearchResult, ScholarStatistics};
 use chrono::Utc;
+use sqlx::MySqlPool;
 
 pub async fn fetch_scholars(
     pool: &MySqlPool,
@@ -120,6 +120,7 @@ pub async fn search_scholars(
 pub async fn get_scholar_details(
     pool: &MySqlPool,
     scholar_id: i32,
+    user_id: Option<i32>,
 ) -> Result<ScholarDetails, AppError> {
     // Get basic scholar information
     let scholar_row = sqlx::query!(
@@ -140,6 +141,13 @@ pub async fn get_scholar_details(
     // Get statistics
     let statistics = get_scholar_statistics(pool, scholar_id).await?;
 
+    // Check if user follows this scholar (if user_id is provided)
+    let is_followed_by_user = if let Some(uid) = user_id {
+        check_user_follows_scholar(pool, uid, scholar_id).await?
+    } else {
+        None
+    };
+
     Ok(ScholarDetails {
         id: scholar_row.id,
         name: scholar_row.name,
@@ -149,6 +157,7 @@ pub async fn get_scholar_details(
         created_at: Utc::now().naive_utc(), // Using current time as placeholder
         updated_at: Utc::now().naive_utc(), // Using current time as placeholder
         statistics,
+        is_followed_by_user,
     })
 }
 
@@ -241,4 +250,21 @@ pub async fn get_scholar_statistics(
         total_likes,
         total_followers,
     })
+}
+
+pub async fn check_user_follows_scholar(
+    pool: &MySqlPool,
+    user_id: i32,
+    scholar_id: i32,
+) -> Result<Option<bool>, AppError> {
+    let follow_count: i64 = sqlx::query_scalar!(
+        "SELECT COUNT(*) FROM tbl_user_scholar_follows WHERE user_id = ? AND scholar_id = ?",
+        user_id,
+        scholar_id
+    )
+    .fetch_one(pool)
+    .await
+    .map_err(AppError::db_error)?;
+
+    Ok(Some(follow_count > 0))
 }

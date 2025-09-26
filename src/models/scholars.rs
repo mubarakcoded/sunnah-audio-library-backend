@@ -28,6 +28,7 @@ pub struct ScholarDetails {
     pub created_at: NaiveDateTime,
     pub updated_at: NaiveDateTime,
     pub statistics: ScholarStatistics,
+    pub is_followed_by_user: Option<bool>, // Will be None if no user context
 }
 
 #[derive(Debug, Serialize)]

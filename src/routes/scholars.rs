@@ -1,16 +1,42 @@
 use crate::{
-    core::{AppError, AppErrorType, AppSuccessResponse},
+    core::{jwt_auth::JwtClaims, AppError, AppErrorType, AppSuccessResponse},
     models::pagination::{PaginationMeta, PaginationQuery},
 };
 use actix_web::{
     get,
     web::{self},
-    HttpResponse, Responder,
+    HttpRequest, HttpResponse, Responder,
 };
 
 use crate::db::scholars;
+use jsonwebtoken::{decode, DecodingKey, Validation};
 use sqlx::MySqlPool;
 use tracing::instrument;
+
+// Helper function to extract user ID from optional JWT token
+fn extract_user_id_from_request(req: &HttpRequest) -> Option<i32> {
+    let token = req
+        .headers()
+        .get(actix_web::http::header::AUTHORIZATION)
+        .and_then(|value| value.to_str().ok())
+        .and_then(|auth_header| {
+            if auth_header.starts_with("Bearer ") {
+                Some(auth_header[7..].to_string())
+            } else {
+                None
+            }
+        })?;
+
+    let claims = decode::<JwtClaims>(
+        &token,
+        &DecodingKey::from_secret("UDAFMIEOLANAOIEWOLADFWEALMOPNVALKAE".as_ref()),
+        &Validation::default(),
+    )
+    .ok()?
+    .claims;
+
+    claims.sub.parse().ok()
+}
 
 #[instrument(name = "Get Scholars", skip(pool))]
 #[get("")]
@@ -85,10 +111,12 @@ pub async fn get_scholars_by_state(
 pub async fn get_scholar_details(
     pool: web::Data<MySqlPool>,
     scholar_id: web::Path<i32>,
+    req: HttpRequest,
 ) -> Result<impl Responder, AppError> {
     let scholar_id = scholar_id.into_inner();
+    let user_id = extract_user_id_from_request(&req);
 
-    let scholar_details = scholars::get_scholar_details(pool.get_ref(), scholar_id)
+    let scholar_details = scholars::get_scholar_details(pool.get_ref(), scholar_id, user_id)
         .await
         .map_err(|e| {
             tracing::error!("Failed to fetch scholar details: {:?}", e);
@@ -102,7 +130,7 @@ pub async fn get_scholar_details(
                     message: Some("Failed to fetch scholar details".to_string()),
                     cause: Some(e.to_string()),
                     error_type: AppErrorType::InternalServerError,
-                }
+                },
             }
         })?;
 
