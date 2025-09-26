@@ -4,7 +4,7 @@ use actix_web::web::{scope, ServiceConfig};
 use actix_web::Scope;
 use books::get_books_by_scholar;
 use files::{get_files_by_book, get_recent_files, get_related_files, view_file};
-use scholars::{get_scholars, get_scholars_by_state};
+use scholars::{get_scholars, get_scholars_by_state, get_scholar_details, get_scholar_statistics};
 use search::full_text_search;
 use states::get_states;
 use permissions::{get_user_permissions, grant_access, revoke_access, get_all_accesses};
@@ -82,6 +82,8 @@ fn scholars_routes() -> Scope {
     scope("scholars")
         .service(get_scholars)
         .service(get_scholars_by_state)
+        .service(get_scholar_details)
+        .service(get_scholar_statistics)
         .service(get_books_by_scholar)
         // follow routes
         .service(follow_scholar)

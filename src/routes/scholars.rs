@@ -80,3 +80,63 @@ pub async fn get_scholars_by_state(
         pagination: Some(pagination_meta),
     }))
 }
+#[instrument(name = "Get Scholar Details", skip(pool))]
+#[get("/{scholar_id}")]
+pub async fn get_scholar_details(
+    pool: web::Data<MySqlPool>,
+    scholar_id: web::Path<i32>,
+) -> Result<impl Responder, AppError> {
+    let scholar_id = scholar_id.into_inner();
+
+    let scholar_details = scholars::get_scholar_details(pool.get_ref(), scholar_id)
+        .await
+        .map_err(|e| {
+            tracing::error!("Failed to fetch scholar details: {:?}", e);
+            match e.error_type {
+                AppErrorType::NotFoundError => AppError {
+                    message: Some("Scholar not found".to_string()),
+                    cause: Some(e.to_string()),
+                    error_type: AppErrorType::NotFoundError,
+                },
+                _ => AppError {
+                    message: Some("Failed to fetch scholar details".to_string()),
+                    cause: Some(e.to_string()),
+                    error_type: AppErrorType::InternalServerError,
+                }
+            }
+        })?;
+
+    Ok(HttpResponse::Ok().json(AppSuccessResponse {
+        success: true,
+        message: "Scholar details retrieved successfully".to_string(),
+        data: Some(scholar_details),
+        pagination: None,
+    }))
+}
+
+#[instrument(name = "Get Scholar Statistics", skip(pool))]
+#[get("/{scholar_id}/statistics")]
+pub async fn get_scholar_statistics(
+    pool: web::Data<MySqlPool>,
+    scholar_id: web::Path<i32>,
+) -> Result<impl Responder, AppError> {
+    let scholar_id = scholar_id.into_inner();
+
+    let statistics = scholars::get_scholar_statistics(pool.get_ref(), scholar_id)
+        .await
+        .map_err(|e| {
+            tracing::error!("Failed to fetch scholar statistics: {:?}", e);
+            AppError {
+                message: Some("Failed to fetch scholar statistics".to_string()),
+                cause: Some(e.to_string()),
+                error_type: AppErrorType::InternalServerError,
+            }
+        })?;
+
+    Ok(HttpResponse::Ok().json(AppSuccessResponse {
+        success: true,
+        message: "Scholar statistics retrieved successfully".to_string(),
+        data: Some(statistics),
+        pagination: None,
+    }))
+}
