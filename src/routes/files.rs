@@ -7,15 +7,16 @@ use sqlx::MySqlPool;
 use tracing::instrument;
 
 use crate::{
-    core::{AppError, AppErrorType, AppSuccessResponse, extract_user_id_from_request},
+    core::{AppError, AppErrorType, AppSuccessResponse, AppConfig, extract_user_id_from_request},
     db::files,
     models::pagination::{PaginationMeta, PaginationQuery},
 };
 
-#[instrument(name = "Get Files by Book", skip(pool))]
+#[instrument(name = "Get Files by Book", skip(pool, config))]
 #[get("/{book_id}/files")]
 pub async fn get_files_by_book(
     pool: web::Data<MySqlPool>,
+    config: web::Data<AppConfig>,
     book_id: web::Path<i32>,
     pagination: web::Query<PaginationQuery>,
     req: HttpRequest,
@@ -23,7 +24,7 @@ pub async fn get_files_by_book(
     let mut pagination = pagination.into_inner();
     pagination.validate();
 
-    let user_id = extract_user_id_from_request(&req);
+    let user_id = extract_user_id_from_request(&req, &config);
 
     let (data, total_items) = files::fetch_files_by_book_with_stats(
         pool.get_ref(),
@@ -51,17 +52,18 @@ pub async fn get_files_by_book(
     }))
 }
 
-#[instrument(name = "Get Recent Files", skip(pool, pagination))]
+#[instrument(name = "Get Recent Files", skip(pool, config, pagination))]
 #[get("/recent")]
 pub async fn get_recent_files(
     pool: web::Data<MySqlPool>,
+    config: web::Data<AppConfig>,
     pagination: web::Query<PaginationQuery>,
     req: HttpRequest,
 ) -> Result<impl Responder, AppError> {
     let mut pagination = pagination.into_inner();
     pagination.validate();
 
-    let user_id = extract_user_id_from_request(&req);
+    let user_id = extract_user_id_from_request(&req, &config);
 
     let (data, total_items) =
         files::fetch_recent_files_with_stats(pool.get_ref(), &pagination, user_id)
@@ -148,10 +150,11 @@ pub async fn get_related_files(
         pagination: Some(pagination_meta),
     }))
 }
-#[instrument(name = "Get All Files for Play All", skip(pool))]
+#[instrument(name = "Get All Files for Play All", skip(pool, _config))]
 #[get("/{book_id}/play-all")]
 pub async fn get_all_files_for_play_all(
     pool: web::Data<MySqlPool>,
+    _config: web::Data<AppConfig>,
     book_id: web::Path<i32>,
 ) -> Result<impl Responder, AppError> {
     let book_id = book_id.into_inner();

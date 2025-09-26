@@ -1,10 +1,16 @@
 sunnah_audio_server_config:
   port: 8990
   host: "127.0.0.1"
+  base_url: "http://127.0.0.1:8990"
 
 jwt_auth_config:
-  secret: "O07G947TB8B2XUU2QXA0I9DK9Q19C2"
+  secret: "UDAFMIEOLANAOIEWOLADFWEALMOPNVALKAE"
   token_expiration_time: 3 #in days
+
+app_paths:
+  static_images: "/api/v1/static/images"
+  static_uploads: "/api/v1/static/uploads"
+  static_audio: "/api/v1/static/audio"
 
 postgres:
   username: "postgres"

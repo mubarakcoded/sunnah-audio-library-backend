@@ -1,10 +1,10 @@
 use actix_web::HttpRequest;
 use jsonwebtoken::{decode, DecodingKey, Validation};
-use crate::core::jwt_auth::JwtClaims;
+use crate::core::{jwt_auth::JwtClaims, AppConfig};
 
 /// Helper function to extract user ID from optional JWT token
 /// Returns Some(user_id) if valid token is provided, None otherwise
-pub fn extract_user_id_from_request(req: &HttpRequest) -> Option<i32> {
+pub fn extract_user_id_from_request(req: &HttpRequest, config: &AppConfig) -> Option<i32> {
     let token = req
         .headers()
         .get(actix_web::http::header::AUTHORIZATION)
@@ -19,7 +19,7 @@ pub fn extract_user_id_from_request(req: &HttpRequest) -> Option<i32> {
 
     let claims = decode::<JwtClaims>(
         &token,
-        &DecodingKey::from_secret("UDAFMIEOLANAOIEWOLADFWEALMOPNVALKAE".as_ref()),
+        &DecodingKey::from_secret(config.get_jwt_secret().as_ref()),
         &Validation::default(),
     ).ok()?.claims;
 
@@ -84,14 +84,14 @@ pub fn calculate_total_duration_from_strings(duration_strings: &[String]) -> Opt
 
 /// Helper function to format image URL
 /// Returns formatted image URL or None if image is None
-pub fn format_image_url(image: Option<String>) -> Option<String> {
-    image.map(|img| format!("http://127.0.0.1:8990/api/v1/static/images/{}", img))
+pub fn format_image_url(image: Option<String>, config: &AppConfig) -> Option<String> {
+    image.map(|img| config.get_image_url(&img))
 }
 
 /// Helper function to format file URL
 /// Returns formatted file URL
-pub fn format_file_url(location: &str) -> String {
-    format!("http://127.0.0.1:8990/api/v1/static/uploads/{}", location)
+pub fn format_file_url(location: &str, config: &AppConfig) -> String {
+    config.get_upload_url(location)
 }
 
 #[cfg(test)]

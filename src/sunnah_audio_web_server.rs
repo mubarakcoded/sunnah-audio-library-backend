@@ -53,7 +53,7 @@ pub async fn run(
     let redis_client = Data::new(redis_client);
     let redis_helper = Data::new(RedisHelper::new(redis_client.clone()));
     let email_service = Data::new(EmailService::new(smtp_config));
-    let _config = crate::core::AppConfig::new().expect("failed to build our appConfig object");
+    let app_config = Data::new(crate::core::AppConfig::new().expect("failed to build our appConfig object"));
 
     let server = HttpServer::new(move || {
         let cors = Cors::default()
@@ -71,6 +71,7 @@ pub async fn run(
             .app_data(redis_client.clone())
             .app_data(redis_helper.clone())
             .app_data(email_service.clone())
+            .app_data(app_config.clone())
             .wrap(cors)
     })
     .listen(listener)?

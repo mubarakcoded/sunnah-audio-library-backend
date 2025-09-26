@@ -1,11 +1,11 @@
 use secrecy::{ExposeSecret, Secret};
 use serde::Deserialize;
 
-use sqlx::postgres::PgConnectOptions;
 use sqlx::mysql::MySqlConnectOptions;
+use sqlx::postgres::PgConnectOptions;
 use sqlx::ConnectOptions;
 
-#[derive(Deserialize, Clone)]
+#[derive(Deserialize, Clone, Debug)]
 pub struct AppConfig {
     pub sunnah_audio_server_config: SunnahWebServer,
     pub postgres: PostgresConfig,
@@ -13,6 +13,7 @@ pub struct AppConfig {
     pub redis: RedisConfig,
     pub jwt_auth_config: JwtAuthConfig,
     pub smtp: SmtpConfig,
+    pub app_paths: AppPaths,
 }
 
 impl AppConfig {
@@ -44,13 +45,52 @@ impl AppConfig {
     }
 }
 
-#[derive(Deserialize, Clone)]
+#[derive(Deserialize, Clone, Debug)]
 pub struct SunnahWebServer {
     pub port: u16,
     pub host: String,
+    pub base_url: String,
 }
 
-#[derive(Deserialize, Clone)]
+#[derive(Deserialize, Clone, Debug)]
+pub struct AppPaths {
+    pub static_images: String,
+    pub static_uploads: String,
+    pub static_audio: String,
+}
+
+impl AppConfig {
+    /// Get the full URL for an image file
+    pub fn get_image_url(&self, filename: &str) -> String {
+        format!(
+            "{}{}/{}",
+            self.sunnah_audio_server_config.base_url, self.app_paths.static_images, filename
+        )
+    }
+
+    /// Get the full URL for an upload file
+    pub fn get_upload_url(&self, filename: &str) -> String {
+        format!(
+            "{}{}/{}",
+            self.sunnah_audio_server_config.base_url, self.app_paths.static_uploads, filename
+        )
+    }
+
+    /// Get the full URL for an audio file
+    pub fn get_audio_url(&self, filename: &str) -> String {
+        format!(
+            "{}{}/{}",
+            self.sunnah_audio_server_config.base_url, self.app_paths.static_audio, filename
+        )
+    }
+
+    /// Get the JWT secret
+    pub fn get_jwt_secret(&self) -> &str {
+        self.jwt_auth_config.secret.expose_secret()
+    }
+}
+
+#[derive(Deserialize, Clone, Debug)]
 pub struct RedisConfig {
     pub host: String,
     pub port: String,
@@ -70,7 +110,7 @@ impl RedisConfig {
     }
 }
 
-#[derive(Deserialize, Clone)]
+#[derive(Deserialize, Clone, Debug)]
 pub struct PostgresConfig {
     pub username: String,
     pub password: Secret<String>,
@@ -92,7 +132,7 @@ impl PostgresConfig {
     }
 }
 
-#[derive(Deserialize, Clone)]
+#[derive(Deserialize, Clone, Debug)]
 pub struct MySqlConfig {
     pub username: String,
     pub password: Secret<String>,
@@ -114,8 +154,7 @@ impl MySqlConfig {
     }
 }
 
-
-#[derive(Deserialize, Clone)]
+#[derive(Deserialize, Clone, Debug)]
 pub struct JwtAuthConfig {
     pub secret: Secret<String>,
     pub token_expiration_time: i64,

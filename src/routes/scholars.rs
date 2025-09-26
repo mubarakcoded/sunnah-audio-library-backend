@@ -1,5 +1,5 @@
 use crate::{
-    core::{AppError, AppErrorType, AppSuccessResponse, extract_user_id_from_request},
+    core::{AppError, AppErrorType, AppSuccessResponse, AppConfig, extract_user_id_from_request},
     models::pagination::{PaginationMeta, PaginationQuery},
 };
 use actix_web::{
@@ -80,15 +80,16 @@ pub async fn get_scholars_by_state(
         pagination: Some(pagination_meta),
     }))
 }
-#[instrument(name = "Get Scholar Details", skip(pool))]
+#[instrument(name = "Get Scholar Details", skip(pool, config))]
 #[get("/{scholar_id}")]
 pub async fn get_scholar_details(
     pool: web::Data<MySqlPool>,
+    config: web::Data<AppConfig>,
     scholar_id: web::Path<i32>,
     req: HttpRequest,
 ) -> Result<impl Responder, AppError> {
     let scholar_id = scholar_id.into_inner();
-    let user_id = extract_user_id_from_request(&req);
+    let user_id = extract_user_id_from_request(&req, &config);
 
     let scholar_details = scholars::get_scholar_details(pool.get_ref(), scholar_id, user_id)
         .await
