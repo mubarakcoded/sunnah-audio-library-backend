@@ -1,13 +1,17 @@
 use crate::{
-    core::{AppError, AppErrorType, AppSuccessResponse, AppConfig, extract_user_id_from_request, jwt_auth::JwtMiddleware},
-    models::pagination::{PaginationMeta, PaginationQuery},
-    models::scholars::{CreateScholarRequest, UpdateScholarRequest},
+    core::{extract_user_id_from_request, jwt_auth::JwtMiddleware, slugify, AppConfig, AppError, AppErrorType, AppSuccessResponse},
+    models::{pagination::{PaginationMeta, PaginationQuery}, scholars::{CreateScholarRequest, UpdateScholarRequest}},
 };
+use actix_multipart::Multipart;
 use actix_web::{
     get, post, put,
     web::{self},
     HttpRequest, HttpResponse, Responder,
 };
+use futures_util::TryStreamExt as _;
+use std::fs;
+use std::io::Write;
+use uuid::Uuid;
 
 use crate::db::scholars;
 use sqlx::MySqlPool;
@@ -171,12 +175,12 @@ pub async fn get_scholars_dropdown(
     }))
 }
 
-#[instrument(name = "Create Scholar", skip(pool, auth))]
+#[instrument(name = "Create Scholar", skip(pool, auth, payload))]
 #[post("")]
 pub async fn create_scholar(
     pool: web::Data<MySqlPool>,
     auth: JwtMiddleware,
-    request: web::Json<CreateScholarRequest>,
+    payload: Multipart,
 ) -> Result<impl Responder, AppError> {
     // Check if user is admin
     let user = crate::db::users::get_user_by_id(pool.get_ref(), auth.user_id)
@@ -198,7 +202,66 @@ pub async fn create_scholar(
         });
     }
 
-    let scholar_id = scholars::create_scholar(pool.get_ref(), &request)
+    // Parse multipart: fields (name, about, state_id) + optional image file
+    let mut name: Option<String> = None;
+    let mut about: Option<String> = None;
+    let mut state_id: Option<i32> = None;
+    let mut image_filename: Option<String> = None;
+    const images_dir: &str = "/home/mubarak/Documents/my-documents/muryar_sunnah/web/images";
+
+    // let images_dir = "./static/images";
+    fs::create_dir_all(images_dir).ok();
+
+    let mut payload = payload;
+    while let Some(mut field) = payload.try_next().await.map_err(|e| AppError::bad_request(format!("Invalid multipart: {}", e)))? {
+        let cd = field.content_disposition();
+        let field_name = cd.get_name().unwrap_or("").to_string();
+        if !field_name.is_empty() {
+            if field_name == "image" {
+                let file_ext = cd.get_filename().and_then(|f| std::path::Path::new(f).extension().and_then(|e| e.to_str())).unwrap_or("jpg");
+                let generated = format!("scholar_{}.{}", Uuid::new_v4(), file_ext);
+                let filepath = format!("{}/{}", images_dir, generated);
+                let mut f = fs::File::create(&filepath)
+                    .map_err(|e| AppError::internal_error(format!("Failed to create image: {}", e)))?;
+                while let Some(chunk) = field.try_next().await.map_err(|e| AppError::internal_error(format!("Failed to read image: {}", e)))? {
+                    f.write_all(&chunk).map_err(|e| AppError::internal_error(format!("Failed to write image: {}", e)))?;
+                }
+                image_filename = Some(generated);
+            } else if field_name == "name" {
+                let bytes = field.try_next().await.map_err(|e| AppError::bad_request(format!("Invalid name: {}", e)))?.unwrap_or_default();
+                name = Some(String::from_utf8(bytes.to_vec()).unwrap_or_default());
+            } else if field_name == "about" {
+                let bytes = field.try_next().await.map_err(|e| AppError::bad_request(format!("Invalid about: {}", e)))?.unwrap_or_default();
+                about = Some(String::from_utf8(bytes.to_vec()).unwrap_or_default());
+            } else if field_name == "state_id" {
+                let bytes = field.try_next().await.map_err(|e| AppError::bad_request(format!("Invalid state_id: {}", e)))?.unwrap_or_default();
+                state_id = String::from_utf8(bytes.to_vec()).ok().and_then(|s| s.parse::<i32>().ok());
+            }
+        }
+    }
+
+     let scholar_name = name.ok_or_else(|| AppError::bad_request("name is required"))?;
+     let scholar_state_id = state_id.ok_or_else(|| AppError::bad_request("state_id is required"))?;
+     let slug_value = slugify(&scholar_name);
+
+
+    if let Some(existing_name) = scholars::check_duplicate_scholar(pool.get_ref(), &scholar_name, &slug_value).await? {
+        return Err(AppError {
+            message: Some(format!("A scholar with the name '{}' already exists", existing_name)),
+            cause: None,
+            error_type: AppErrorType::ConflictError,
+        });
+    }
+
+
+    let request = CreateScholarRequest {
+        name: scholar_name,
+        about,
+        state_id: scholar_state_id,
+        image: image_filename,
+    };
+
+    let scholar_id = scholars::create_scholar(pool.get_ref(), &request, auth.user_id, &slug_value)
         .await
         .map_err(|e| {
             tracing::error!("Failed to create scholar: {:?}", e);
@@ -217,13 +280,13 @@ pub async fn create_scholar(
     }))
 }
 
-#[instrument(name = "Update Scholar", skip(pool, auth))]
+#[instrument(name = "Update Scholar", skip(pool, auth, payload))]
 #[put("/{scholar_id}")]
 pub async fn update_scholar(
     pool: web::Data<MySqlPool>,
     auth: JwtMiddleware,
     scholar_id: web::Path<i32>,
-    request: web::Json<UpdateScholarRequest>,
+    payload: Multipart,
 ) -> Result<impl Responder, AppError> {
     let scholar_id = scholar_id.into_inner();
 
@@ -246,6 +309,50 @@ pub async fn update_scholar(
             error_type: AppErrorType::ForbiddenError,
         });
     }
+
+    // Parse multipart; same fields as create, all optional
+    let mut name: Option<String> = None;
+    let mut about: Option<String> = None;
+    let mut state_id: Option<i32> = None;
+    let mut image_filename: Option<String> = None;
+
+    const images_dir: &str = "/home/mubarak/Documents/my-documents/muryar_sunnah/web/images";
+    fs::create_dir_all(images_dir).ok();
+
+    let mut payload = payload;
+    while let Some(mut field) = payload.try_next().await.map_err(|e| AppError::bad_request(format!("Invalid multipart: {}", e)))? {
+        let cd = field.content_disposition();
+        let field_name = cd.get_name().unwrap_or("").to_string();
+        if !field_name.is_empty() {
+            if field_name == "image" {
+                let file_ext = cd.get_filename().and_then(|f| std::path::Path::new(f).extension().and_then(|e| e.to_str())).unwrap_or("jpg");
+                let generated = format!("scholar_{}.{}", Uuid::new_v4(), file_ext);
+                let filepath = format!("{}/{}", images_dir, generated);
+                let mut f = fs::File::create(&filepath)
+                    .map_err(|e| AppError::internal_error(format!("Failed to create image: {}", e)))?;
+                while let Some(chunk) = field.try_next().await.map_err(|e| AppError::internal_error(format!("Failed to read image: {}", e)))? {
+                    f.write_all(&chunk).map_err(|e| AppError::internal_error(format!("Failed to write image: {}", e)))?;
+                }
+                image_filename = Some(generated);
+            } else if field_name == "name" {
+                let bytes = field.try_next().await.map_err(|e| AppError::bad_request(format!("Invalid name: {}", e)))?.unwrap_or_default();
+                name = Some(String::from_utf8(bytes.to_vec()).unwrap_or_default());
+            } else if field_name == "about" {
+                let bytes = field.try_next().await.map_err(|e| AppError::bad_request(format!("Invalid about: {}", e)))?.unwrap_or_default();
+                about = Some(String::from_utf8(bytes.to_vec()).unwrap_or_default());
+            } else if field_name == "state_id" {
+                let bytes = field.try_next().await.map_err(|e| AppError::bad_request(format!("Invalid state_id: {}", e)))?.unwrap_or_default();
+                state_id = String::from_utf8(bytes.to_vec()).ok().and_then(|s| s.parse::<i32>().ok());
+            }
+        }
+    }
+
+    let request = UpdateScholarRequest {
+        name,
+        about,
+        state_id,
+        image: image_filename,
+    };
 
     scholars::update_scholar(pool.get_ref(), scholar_id, &request)
         .await
