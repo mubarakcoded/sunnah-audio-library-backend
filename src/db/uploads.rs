@@ -5,14 +5,14 @@ use sqlx::MySqlPool;
 
 pub async fn save_uploaded_file(
     pool: &MySqlPool,
-    book_id: i32,
+    book_id: i32,        // Extracted from MP3
     filename: &str,
     file_path: &str,
     file_size: i64,
     content_type: &str,
-    title: &str,
-    _description: Option<&str>,
-    _uploaded_by: i32,
+    duration: &str,        // Formatted duration (MM:SS or HH:MM:SS)
+    random_id: &str,
+    user_id: i32,
 ) -> Result<FileUploadResponse, AppError> {
     let now = chrono::Utc::now();
 
@@ -21,17 +21,19 @@ pub async fn save_uploaded_file(
 
     let result = sqlx::query!(
         r#"
-        INSERT INTO tbl_files (
-            name, location, size, book, scholar,
-            duration, date, downloads, status, created_at
-        )
-        VALUES (?, ?, ?, ?, ?, '00:00:00', ?, 0, 'active', ?)
+        INSERT INTO tbl_files 
+        (book, scholar, name, location, size, type, duration, uid, created_by, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         "#,
-        title,
-        filename, // Store just the filename in location
-        file_size.to_string(),
         book_id,
         scholar_id,
+        filename,
+        file_path,
+        file_size,
+        content_type,
+        duration,
+        random_id,
+        user_id,
         now,
         now
     )

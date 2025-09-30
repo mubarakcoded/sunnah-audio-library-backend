@@ -9,11 +9,13 @@ use tracing::instrument;
 use uuid::Uuid;
 
 use crate::{
-    core::{jwt_auth::JwtMiddleware, AppError, AppErrorType, AppSuccessResponse},
-    db::{access, uploads, file_interactions, subscriptions},
+    core::{extract_mp3_metadata, jwt_auth::JwtMiddleware, AppError, AppErrorType, AppSuccessResponse},
+    db::{access, file_interactions, subscriptions, uploads},
 };
 
-const UPLOAD_DIR: &str = "./uploads";
+// const UPLOAD_DIR: &str = "./uploads";
+const UPLOAD_DIR: &str = "/home/mubarak/Documents/my-documents/muryar_sunnah/web/uploads";
+
 const MAX_FILE_SIZE: usize = 100 * 1024 * 1024; // 100MB
 
 #[instrument(name = "Upload File", skip(pool, payload))]
@@ -25,9 +27,23 @@ pub async fn upload_file(
     mut payload: Multipart,
 ) -> Result<impl Responder, AppError> {
     let book_id = book_id.into_inner();
-    
+
     // Check if user has access to upload to this book's scholar
-    let scholar_id = uploads::get_scholar_id_from_book(pool.get_ref(), book_id)
+
+    let user = crate::db::users::get_user_by_id(pool.get_ref(), auth.user_id)
+        .await
+        .map_err(|e| {
+            tracing::error!("Failed to get user: {:?}", e);
+            AppError {
+                message: Some("User not found".to_string()),
+                cause: Some(e.to_string()),
+                error_type: AppErrorType::NotFoundError,
+            }
+        })?;
+
+    if user.role != "admin" {
+
+        let scholar_id = uploads::get_scholar_id_from_book(pool.get_ref(), book_id)
         .await
         .map_err(|e| {
             tracing::error!("Failed to get scholar_id for book {}: {:?}", book_id, e);
@@ -38,23 +54,27 @@ pub async fn upload_file(
             }
         })?;
 
-    let has_access = access::check_user_access_to_scholar(pool.get_ref(), auth.user_id, scholar_id)
-        .await
-        .map_err(|e| {
-            tracing::error!("Failed to check user access: {:?}", e);
-            AppError {
-                message: Some("Failed to verify permissions".to_string()),
-                cause: Some(e.to_string()),
-                error_type: AppErrorType::InternalServerError,
-            }
-        })?;
+        let has_access =
+            access::check_user_access_to_scholar(pool.get_ref(), auth.user_id, scholar_id)
+                .await
+                .map_err(|e| {
+                    tracing::error!("Failed to check user access: {:?}", e);
+                    AppError {
+                        message: Some("Failed to verify permissions".to_string()),
+                        cause: Some(e.to_string()),
+                        error_type: AppErrorType::InternalServerError,
+                    }
+                })?;
 
-    if !has_access {
-        return Err(AppError {
-            message: Some("You don't have permission to upload to this scholar's content".to_string()),
-            cause: None,
-            error_type: AppErrorType::ForbiddenError,
-        });
+        if !has_access {
+            return Err(AppError {
+                message: Some(
+                    "You don't have permission to upload to this scholar's content".to_string(),
+                ),
+                cause: None,
+                error_type: AppErrorType::ForbiddenError,
+            });
+        }
     }
 
     // Create upload directory if it doesn't exist
@@ -67,9 +87,9 @@ pub async fn upload_file(
         }
     })?;
 
-    let mut title = String::new();
     let mut description: Option<String> = None;
     let mut file_data: Option<(String, Vec<u8>, String)> = None;
+
 
     // Process multipart form data
     while let Some(mut field) = payload.try_next().await.map_err(|e| {
@@ -84,25 +104,6 @@ pub async fn upload_file(
         let field_name = content_disposition.get_name().unwrap_or("");
 
         match field_name {
-            "title" => {
-                let mut data = Vec::new();
-                while let Some(chunk) = field.try_next().await.map_err(|e| {
-                    AppError {
-                        message: Some("Failed to read title field".to_string()),
-                        cause: Some(e.to_string()),
-                        error_type: AppErrorType::PayloadValidationError,
-                    }
-                })? {
-                    data.extend_from_slice(&chunk);
-                }
-                title = String::from_utf8(data).map_err(|e| {
-                    AppError {
-                        message: Some("Invalid title encoding".to_string()),
-                        cause: Some(e.to_string()),
-                        error_type: AppErrorType::PayloadValidationError,
-                    }
-                })?;
-            }
             "description" => {
                 let mut data = Vec::new();
                 while let Some(chunk) = field.try_next().await.map_err(|e| {
@@ -135,10 +136,19 @@ pub async fn upload_file(
                     })?
                     .to_string();
 
+                // Validate MP3 file extension
+                if !filename.to_lowercase().ends_with(".mp3") {
+                    return Err(AppError {
+                        message: Some("Only MP3 files are allowed".to_string()),
+                        cause: None,
+                        error_type: AppErrorType::PayloadValidationError,
+                    });
+                }
+
                 let content_type = field
                     .content_type()
                     .map(|ct| ct.to_string())
-                    .unwrap_or_else(|| "application/octet-stream".to_string());
+                    .unwrap_or_else(|| "audio/mpeg".to_string());
 
                 let mut file_bytes = Vec::new();
                 while let Some(chunk) = field.try_next().await.map_err(|e| {
@@ -171,45 +181,34 @@ pub async fn upload_file(
         }
     }
 
-    // Validate required fields
-    if title.is_empty() {
-        return Err(AppError {
-            message: Some("Title is required".to_string()),
-            cause: None,
-            error_type: AppErrorType::PayloadValidationError,
-        });
-    }
-
-    let (filename, file_bytes, content_type) = file_data.ok_or_else(|| AppError {
+    let (original_filename, file_bytes, content_type) = file_data.ok_or_else(|| AppError {
         message: Some("File is required".to_string()),
         cause: None,
         error_type: AppErrorType::PayloadValidationError,
     })?;
 
+    // Extract MP3 metadata (title and duration)
+    let (title, duration) = extract_mp3_metadata(&file_bytes)?;
+
+    tracing::info!("Extracted MP3 metadata - Title: {}, Duration: {}", title, duration);
+
     // Generate unique filename
-    let file_extension = Path::new(&filename)
+    let file_stem = Path::new(&original_filename)
+        .file_stem()
+        .and_then(|s| s.to_str())
+        .unwrap_or("Audio");
+    
+    let file_extension = Path::new(&original_filename)
         .extension()
         .and_then(|ext| ext.to_str())
-        .unwrap_or("");
-    let unique_filename = format!("{}_{}.{}", 
-        Uuid::new_v4(), 
-        chrono::Utc::now().timestamp(), 
-        file_extension
-    );
+        .unwrap_or("mp3");
+    
+    let random_id = Uuid::new_v4().to_string()[..5].to_string(); // 5 char random ID
+    let unique_filename = format!("{}_{}.{}", file_stem, random_id, file_extension);
     let file_path = format!("{}/{}", UPLOAD_DIR, unique_filename);
 
-    // Save file to disk
-    let mut file = std::fs::File::create(&file_path).map_err(|e| {
-        tracing::error!("Failed to create file {}: {:?}", file_path, e);
-        AppError {
-            message: Some("Failed to save file".to_string()),
-            cause: Some(e.to_string()),
-            error_type: AppErrorType::InternalServerError,
-        }
-    })?;
-
-    file.write_all(&file_bytes).map_err(|e| {
-        tracing::error!("Failed to write file data: {:?}", e);
+    fs::write(&file_path, &file_bytes).map_err(|e| {
+        tracing::error!("Failed to write file {}: {:?}", file_path, e);
         AppError {
             message: Some("Failed to save file".to_string()),
             cause: Some(e.to_string()),
@@ -220,13 +219,13 @@ pub async fn upload_file(
     // Save file metadata to database
     let upload_response = uploads::save_uploaded_file(
         pool.get_ref(),
-        book_id,
+        book_id,                // Use extracted title from MP3
+        &file_stem,
         &unique_filename,
-        &file_path,
         file_bytes.len() as i64,
         &content_type,
-        &title,
-        description.as_deref(),
+        &duration,                 // MP3 duration
+        &random_id,
         auth.user_id,
     )
     .await
@@ -240,6 +239,7 @@ pub async fn upload_file(
             error_type: AppErrorType::InternalServerError,
         }
     })?;
+
 
     Ok(HttpResponse::Ok().json(AppSuccessResponse {
         success: true,
@@ -292,17 +292,18 @@ pub async fn download_file(
         })?;
 
     // Get user's active subscription (if any)
-    let subscription_id = match subscriptions::get_user_active_subscription(&pool, auth.user_id).await {
-        Ok(Some(subscription)) => Some(subscription.id),
-        _ => None,
-    };
+    let subscription_id =
+        match subscriptions::get_user_active_subscription(&pool, auth.user_id).await {
+            Ok(Some(subscription)) => Some(subscription.id),
+            _ => None,
+        };
 
     // Extract client IP and user agent
     let client_ip = req
         .connection_info()
         .realip_remote_addr()
         .map(|ip| ip.to_string());
-    
+
     let user_agent = req
         .headers()
         .get("user-agent")
@@ -317,7 +318,9 @@ pub async fn download_file(
         file_id,
         client_ip,
         user_agent,
-    ).await {
+    )
+    .await
+    {
         tracing::warn!("Failed to log file download: {}", e);
         // Don't fail the download if logging fails
     }

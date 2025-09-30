@@ -67,6 +67,9 @@ lettre = { version = "0.11", features = [
     "builder",
 ] }
 
+mp3-metadata = "0.3.0"
+id3 = "1.13.2"
+
 [dependencies.sqlx]
 version = "0.7.1"
 default-features = false

@@ -2,6 +2,11 @@ use actix_web::HttpRequest;
 use jsonwebtoken::{decode, DecodingKey, Validation};
 use crate::core::{jwt_auth::JwtClaims, AppConfig};
 
+use super::{AppError, AppErrorType};
+use mp3_metadata;
+use id3::{Tag, TagLike};
+use std::io::Cursor;
+
 /// Helper function to extract user ID from optional JWT token
 /// Returns Some(user_id) if valid token is provided, None otherwise
 pub fn extract_user_id_from_request(req: &HttpRequest, config: &AppConfig) -> Option<i32> {
@@ -116,6 +121,31 @@ pub fn slugify(input: &str) -> String {
         slug.pop();
     }
     slug
+}
+
+
+// Helper function to extract MP3 metadata
+pub fn extract_mp3_metadata(file_bytes: &[u8]) -> Result<(String, String), AppError> {
+    // Extract duration using mp3-metadata
+    let duration_secs = mp3_metadata::read_from_slice(file_bytes)
+        .map_err(|e| AppError {
+            message: Some("Failed to read MP3 metadata".to_string()),
+            cause: Some(e.to_string()),
+            error_type: AppErrorType::PayloadValidationError,
+        })?
+        .duration
+        .as_secs();
+    
+    let formatted_duration = format_duration(duration_secs.try_into().unwrap());
+    
+    // Extract title from ID3 tags
+    let cursor = Cursor::new(file_bytes);
+    let title = Tag::read_from(cursor)
+        .ok()
+        .and_then(|tag| tag.title().map(|t| t.to_string()))
+        .unwrap_or_else(|| "Untitled".to_string());
+    
+    Ok((title, formatted_duration))
 }
 
 #[cfg(test)]
