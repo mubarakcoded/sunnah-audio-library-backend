@@ -13,6 +13,7 @@ use chrono::{Duration, Utc};
 use sqlx::MySqlPool;
 use rand::Rng;
 use std::time::Duration as StdDuration;
+use uuid::Uuid;
 
 #[tracing::instrument(name = "Register User", skip(pool, request))]
 #[post("/register")]
@@ -55,10 +56,11 @@ pub async fn register(
     }))
 }
 
-#[tracing::instrument(name = "User Login", skip(pool, request))]
+#[tracing::instrument(name = "User Login", skip(pool, request, redis_service))]
 #[post("/login")]
 pub async fn login(
     pool: web::Data<MySqlPool>,
+    redis_service: web::Data<RedisHelper>,
     request: web::Json<LoginRequest>,
 ) -> Result<HttpResponse, AppError> {
     // Get user by email
@@ -98,10 +100,23 @@ pub async fn login(
         Err(_) => None, // Don't fail login if subscription check fails
     };
 
+    // Issue refresh token and store in Redis
+    let refresh_expires_at = Utc::now() + Duration::days(14);
+    let refresh_token = Uuid::new_v4().to_string();
+    let ttl = StdDuration::from_secs((refresh_expires_at.timestamp() - Utc::now().timestamp()) as u64);
+    let user_refresh_key = format!("refresh_token:{}", user.id);
+    let refresh_owner_key = format!("refresh:owner:{}", refresh_token);
+    // Store both forward and reverse mapping for rotation/revocation
+    redis_service.set(&user_refresh_key, &refresh_token, Some(ttl)).await
+        .map_err(|e| AppError::internal_error(format!("Failed to store refresh token: {}", e)))?;
+    redis_service.set(&refresh_owner_key, &user.id, Some(ttl)).await.ok();
+
     let response = LoginResponse {
         user: user_profile,
         token,
         expires_at,
+        refresh_token,
+        refresh_expires_at,
         subscription_status,
     };
 
@@ -109,6 +124,101 @@ pub async fn login(
         success: true,
         data: response,
         message: "Login successful".to_string(),
+        pagination: None,
+    }))
+}
+
+#[derive(Debug, serde::Deserialize)]
+pub struct RefreshTokenRequest { pub refresh_token: String }
+
+#[tracing::instrument(name = "Refresh Access Token", skip(pool, redis_service, body))]
+#[post("/refresh-token")]
+pub async fn refresh_token_endpoint(
+    pool: web::Data<MySqlPool>,
+    redis_service: web::Data<RedisHelper>,
+    body: web::Json<RefreshTokenRequest>,
+) -> Result<HttpResponse, AppError> {
+    let provided = body.refresh_token.clone();
+
+    // Find owner via reverse index
+    let owner_key = format!("refresh:owner:{}", provided);
+    let user_id: i32 = match redis_service.get(&owner_key).await {
+        Ok(uid) => uid,
+        Err(_) => {
+            return Ok(HttpResponse::Unauthorized().json(AppErrorResponse {
+                success: false,
+                message: "Invalid refresh token".to_string(),
+            }))
+        }
+    };
+
+    // Validate current refresh token for this user
+    let current_key = format!("refresh_token:{}", user_id);
+    let current_token: String = match redis_service.get(&current_key).await {
+        Ok(tok) => tok,
+        Err(_) => {
+            return Ok(HttpResponse::Unauthorized().json(AppErrorResponse {
+                success: false,
+                message: "Refresh token not found".to_string(),
+            }))
+        }
+    };
+    if current_token != provided {
+        return Ok(HttpResponse::Unauthorized().json(AppErrorResponse {
+            success: false,
+            message: "Refresh token mismatch".to_string(),
+        }));
+    }
+
+    // Rotate tokens
+    let user = users::get_user_by_id(&pool, user_id).await?;
+    let expires_at = Utc::now() + Duration::hours(24);
+    let claims = JwtClaims { sub: user.id.to_string(), email: user.email.clone(), role: user.role.clone(), exp: expires_at.timestamp() as usize };
+    let token = generate_jwt_token(&claims)?;
+
+    let refresh_expires_at = Utc::now() + Duration::days(14);
+    let new_refresh = Uuid::new_v4().to_string();
+    let ttl = StdDuration::from_secs((refresh_expires_at.timestamp() - Utc::now().timestamp()) as u64);
+
+    // Update mappings
+    redis_service.set(&current_key, &new_refresh, Some(ttl)).await
+        .map_err(|e| AppError::internal_error(format!("Failed to store refresh token: {}", e)))?;
+    let _ = redis_service.delete(&owner_key).await;
+    let new_owner_key = format!("refresh:owner:{}", new_refresh);
+    redis_service.set(&new_owner_key, &user.id, Some(ttl)).await.ok();
+
+    let response = LoginResponse {
+        user: UserProfile::from(user),
+        token,
+        expires_at,
+        refresh_token: new_refresh,
+        refresh_expires_at,
+        subscription_status: None,
+    };
+
+    Ok(HttpResponse::Ok().json(AppSuccessResponse { success: true, data: response, message: "Token refreshed".to_string(), pagination: None }))
+}
+
+#[derive(Debug, serde::Deserialize)]
+pub struct LogoutRequest { pub refresh_token: String }
+
+#[tracing::instrument(name = "User Logout", skip(redis_service, body))]
+#[post("/logout")]
+pub async fn logout(
+    redis_service: web::Data<RedisHelper>,
+    body: web::Json<LogoutRequest>,
+) -> Result<HttpResponse, AppError> {
+    let provided = body.refresh_token.clone();
+    let owner_key = format!("refresh:owner:{}", provided);
+    if let Ok::<i32, _>(user_id) = redis_service.get(&owner_key).await {
+        let _ = redis_service.delete(&format!("refresh_token:{}", user_id)).await;
+    }
+    let _ = redis_service.delete(&owner_key).await;
+
+    Ok(HttpResponse::Ok().json(AppSuccessResponse {
+        success: true,
+        data: MessageResponse { message: "Logged out".to_string() },
+        message: "Logged out".to_string(),
         pagination: None,
     }))
 }

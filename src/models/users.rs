@@ -37,6 +37,8 @@ pub struct LoginResponse {
     pub user: UserProfile,
     pub token: String,
     pub expires_at: DateTime<Utc>,
+    pub refresh_token: String,
+    pub refresh_expires_at: DateTime<Utc>,
     pub subscription_status: Option<crate::models::subscriptions::SubscriptionStatus>,
 }
 

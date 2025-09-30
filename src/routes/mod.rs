@@ -35,7 +35,7 @@ use subscriptions::{
 use uploads::{download_file, upload_file};
 use users::{
     change_password, deactivate_account, forgot_password, get_profile, login, register,
-    reset_password, update_profile,
+    reset_password, update_profile, refresh_token_endpoint, logout,
 };
 use settings::get_site_settings;
 mod books;
@@ -61,6 +61,7 @@ const IMAGES_DIR: &str = "/home/mubarak/Documents/my-documents/muryar_sunnah/web
 fn util_routes() -> Scope {
     scope("")
         .service(get_states)
+        .service(get_site_settings)
         .service(full_text_search)
         .service(health_check)
 }
@@ -132,6 +133,8 @@ fn users_routes() -> Scope {
     scope("users")
         .service(register)
         .service(login)
+        .service(refresh_token_endpoint)
+        .service(logout)
         .service(get_profile)
         .service(update_profile)
         .service(change_password)
@@ -193,7 +196,6 @@ pub fn sunnah_audio_routes(conf: &mut ServiceConfig) {
             .service(play_history_routes())
             .service(playlists_routes())
             .service(static_files_routes())
-            .service(util_routes())
-            .service(get_site_settings),
+            .service(util_routes()),
     );
 }
