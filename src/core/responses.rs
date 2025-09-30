@@ -22,6 +22,7 @@ pub enum AppErrorType {
     SerializationError,
     ForbiddenError,
     HashingFailed,
+    ConflictError,
 }
 
 #[derive(Debug, PartialEq)]
@@ -93,6 +94,14 @@ impl AppError {
             message: Some(error.to_string()),
         }
     }
+
+    pub fn conflict_error(error: impl ToString) -> AppError {
+        AppError {
+            cause: Some(error.to_string()),
+            error_type: AppErrorType::ConflictError,
+            message: Some(error.to_string()),
+        }
+    }
 }
 
 impl From<anyhow::Error> for AppError {
@@ -158,6 +167,7 @@ impl ResponseError for AppError {
             AppErrorType::ApiError { .. } => StatusCode::BAD_GATEWAY,
             AppErrorType::ForbiddenError => StatusCode::FORBIDDEN,
             AppErrorType::HashingFailed => StatusCode::BAD_GATEWAY,
+            AppErrorType::ConflictError => StatusCode::CONFLICT,
         }
     }
 
