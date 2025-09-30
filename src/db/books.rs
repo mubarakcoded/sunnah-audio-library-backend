@@ -14,7 +14,9 @@ pub async fn fetch_books_by_scholar(
         "SELECT
         id,
         name,
-        image
+        image,
+        created_at,
+        created_by
         FROM tbl_books 
         WHERE scholar_id = ? AND status = 'active'
         LIMIT ? OFFSET ?",
@@ -33,6 +35,8 @@ pub async fn fetch_books_by_scholar(
             id: row.id,
             name: row.name,
             image: config.get_image_url(&row.image),
+            created_at: row.created_at.naive_utc(),
+            created_by: row.created_by
         })
         .collect();
 
@@ -286,18 +290,22 @@ pub async fn get_books_dropdown(
 pub async fn create_book(
     pool: &MySqlPool,
     request: &crate::models::books::CreateBookRequest,
+    slug_value: &str,
+    user_id: i32,
 ) -> Result<i32, AppError> {
     let now = Utc::now().naive_utc();
     
     let result = sqlx::query!(
         r#"
-        INSERT INTO tbl_books (name, about, scholar_id, image, status, created_at, updated_at)
-        VALUES (?, ?, ?, ?, 'active', ?, ?)
+        INSERT INTO tbl_books (name, about, scholar_id, image, slug, status, created_by, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, 'active', ?, ?, ?)
         "#,
         request.name,
         request.about,
         request.scholar_id,
-        request.image.as_deref().unwrap_or("default.jpg"),
+        request.image.as_deref().unwrap_or("book.jpg"),
+        slug_value,
+        user_id,
         now,
         now
     )
@@ -365,4 +373,28 @@ pub async fn update_book(
     }
 
     Ok(())
+}
+
+pub async fn check_duplicate_book(
+    pool: &MySqlPool,
+    name: &str,
+    scholar_id: i32,
+    slug_value: &str,
+) -> Result<Option<String>, AppError> {
+    
+    let existing = sqlx::query!(
+        r#"
+        SELECT name FROM tbl_books 
+        WHERE (name = ? OR slug = ?) AND scholar_id = ?
+        LIMIT 1
+        "#,
+        name,
+        slug_value,
+        scholar_id
+    )
+    .fetch_optional(pool)
+    .await
+    .map_err(AppError::db_error)?;
+
+    Ok(existing.map(|b| b.name))
 }

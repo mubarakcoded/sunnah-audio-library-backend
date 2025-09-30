@@ -7,6 +7,8 @@ pub struct Book {
     pub id: i32,
     pub name: String,
     pub image: String,
+    pub created_at: NaiveDateTime,
+    pub created_by: i32,
 }
 
 #[derive(Debug, Serialize)]

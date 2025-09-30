@@ -57,6 +57,7 @@ mod settings;
 
 use crate::routes::health_check::*;
 const IMAGES_DIR: &str = "/home/mubarak/Documents/my-documents/muryar_sunnah/web/images";
+// const IMAGES_DIR: &str = "./static/images";
 
 fn util_routes() -> Scope {
     scope("")
