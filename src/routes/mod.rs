@@ -37,6 +37,7 @@ use users::{
     change_password, deactivate_account, forgot_password, get_profile, login, register,
     reset_password, update_profile,
 };
+use settings::get_site_settings;
 mod books;
 mod file_interactions;
 mod files;
@@ -52,6 +53,7 @@ mod states;
 mod subscriptions;
 mod uploads;
 mod users;
+mod settings;
 
 use crate::routes::health_check::*;
 const IMAGES_DIR: &str = "/home/mubarak/Documents/my-documents/muryar_sunnah/web/images";
@@ -191,6 +193,7 @@ pub fn sunnah_audio_routes(conf: &mut ServiceConfig) {
             .service(play_history_routes())
             .service(playlists_routes())
             .service(static_files_routes())
-            .service(util_routes()),
+            .service(util_routes())
+            .service(get_site_settings),
     );
 }

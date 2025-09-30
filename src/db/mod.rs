@@ -10,3 +10,4 @@ pub mod follows;
 pub mod play_history;
 pub mod playlists;
 pub mod file_interactions;
+pub mod settings;
