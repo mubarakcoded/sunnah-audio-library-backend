@@ -94,6 +94,30 @@ pub fn format_file_url(location: &str, config: &AppConfig) -> String {
     config.get_upload_url(location)
 }
 
+pub fn slugify(input: &str) -> String {
+    let mut slug = String::new();
+    let mut prev_hyphen = false;
+    for ch in input.chars() {
+        let c = ch.to_ascii_lowercase();
+        if c.is_ascii_alphanumeric() {
+            slug.push(c);
+            prev_hyphen = false;
+        } else if c.is_ascii() {
+            if !prev_hyphen {
+                slug.push('-');
+                prev_hyphen = true;
+            }
+        }
+    }
+    while slug.starts_with('-') {
+        slug.remove(0);
+    }
+    while slug.ends_with('-') {
+        slug.pop();
+    }
+    slug
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
