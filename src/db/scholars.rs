@@ -1,4 +1,4 @@
-use crate::core::{AppError, AppConfig};
+use crate::core::{slugify, AppConfig, AppError, AppErrorType};
 use crate::models::pagination::PaginationQuery;
 use crate::models::scholars::{Scholar, ScholarDetails, ScholarSearchResult, ScholarStatistics};
 use chrono::Utc;
@@ -366,18 +366,48 @@ pub async fn get_scholars_dropdown(
 pub async fn create_scholar(
     pool: &MySqlPool,
     request: &crate::models::scholars::CreateScholarRequest,
+    user_id: i32,
 ) -> Result<i32, AppError> {
-    let now = Utc::now().naive_utc();
     
-    let result = sqlx::query!(
+    let slug_value: String = slugify(&request.name);
+
+    let existing = sqlx::query!(
         r#"
-        INSERT INTO tbl_scholars (name, about, state, image, status, created_at, updated_at)
-        VALUES (?, ?, ?, ?, 'active', ?, ?)
+        SELECT id, name FROM tbl_scholars 
+        WHERE name = ? OR slug = ?
+        LIMIT 1
         "#,
         request.name,
-        request.about,
+        slug_value
+    )
+    .fetch_optional(pool)
+    .await
+    .map_err(AppError::db_error)?;
+
+    if let Some(scholar) = existing {
+        return Err(AppError {
+            message: Some(format!("Scholar with name '{}' already exists", scholar.name)),
+            cause: None,
+            error_type: AppErrorType::BadRequest,
+        });
+    }
+
+    let about_value: String = request.about.clone().unwrap_or_default();
+    let image_value: &str = request.image.as_deref().unwrap_or("scholar.jpg");
+    let now = Utc::now().naive_utc();
+
+
+    let result = sqlx::query!(
+        r#"
+        INSERT INTO tbl_scholars (name, about, state, image, slug, status, created_by, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, 'active', ?, ?, ?)
+        "#,
+        request.name,
+        about_value,
         request.state_id,
-        request.image.as_deref().unwrap_or("default.jpg"),
+        image_value,
+        slug_value,
+        user_id,
         now,
         now
     )
