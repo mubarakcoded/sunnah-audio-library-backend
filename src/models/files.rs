@@ -133,7 +133,7 @@ pub struct PlayAllResponse {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct UpdateFileRequest {
-    pub title: Option<String>,
-    pub description: Option<String>,
+    pub name: Option<String>,
     pub book_id: Option<i32>,
+    pub scholar_id: Option<i32>,
 }

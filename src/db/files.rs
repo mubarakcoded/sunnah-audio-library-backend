@@ -582,10 +582,11 @@ pub async fn update_file(
     file_id: i32,
     request: &crate::models::files::UpdateFileRequest,
 ) -> Result<(), AppError> {
+    const UPLOAD_DIR: &str = "/home/mubarak/Documents/my-documents/muryar_sunnah/web/uploads";
     let now = chrono::Utc::now().naive_utc();
 
     // Update each field individually if provided
-    if let Some(ref title) = request.title {
+    if let Some(ref title) = request.name {
         sqlx::query!(
             "UPDATE tbl_files SET name = ?, updated_at = ? WHERE id = ? AND status = 'active'",
             title,

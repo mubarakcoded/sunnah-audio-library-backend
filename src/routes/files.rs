@@ -196,39 +196,42 @@ pub async fn update_file(
 ) -> Result<impl Responder, AppError> {
     let file_id = file_id.into_inner();
 
-    // Check if user can update this file (owner or admin)
-    let can_update = files::check_file_owner_or_admin(pool.get_ref(), auth.user_id, file_id)
+    let user = crate::db::users::get_user_by_id(pool.get_ref(), auth.user_id)
         .await
         .map_err(|e| {
-            tracing::error!("Failed to check file permissions: {:?}", e);
+            tracing::error!("Failed to get user: {:?}", e);
             AppError {
-                message: Some("Failed to verify permissions".to_string()),
+                message: Some("User not found".to_string()),
                 cause: Some(e.to_string()),
-                error_type: AppErrorType::InternalServerError,
+                error_type: AppErrorType::NotFoundError,
             }
         })?;
 
-    if !can_update {
-        return Err(AppError {
-            message: Some("You don't have permission to update this file".to_string()),
-            cause: None,
-            error_type: AppErrorType::ForbiddenError,
-        });
-    }
+    // if user.role != "admin" {
+    //     let can_update = files::check_file_owner(pool.get_ref(), auth.user_id, file_id)
+    //         .await
+    //         .map_err(|e| {
+    //             tracing::error!("Failed to check file permissions: {:?}", e);
+    //             AppError {
+    //                 message: Some("Failed to verify permissions".to_string()),
+    //                 cause: Some(e.to_string()),
+    //                 error_type: AppErrorType::InternalServerError,
+    //             }
+    //         })?;
+
+    //     if !can_update {
+    //         return Err(AppError {
+    //             message: Some("You don't have permission to update this file".to_string()),
+    //             cause: None,
+    //             error_type: AppErrorType::ForbiddenError,
+    //         });
+    //     }
+    // }
+
+ 
 
     // If changing book, check if user has access to the new book's scholar
     if let Some(new_book_id) = request.book_id {
-        let user = crate::db::users::get_user_by_id(pool.get_ref(), auth.user_id)
-            .await
-            .map_err(|e| {
-                tracing::error!("Failed to get user: {:?}", e);
-                AppError {
-                    message: Some("User not found".to_string()),
-                    cause: Some(e.to_string()),
-                    error_type: AppErrorType::NotFoundError,
-                }
-            })?;
-
         if user.role != "admin" {
             // Get the scholar_id for the new book
             let scholar_id = sqlx::query_scalar!(
@@ -264,6 +267,34 @@ pub async fn update_file(
             if !has_access {
                 return Err(AppError {
                     message: Some("You don't have permission to move this file to the specified book".to_string()),
+                    cause: None,
+                    error_type: AppErrorType::ForbiddenError,
+                });
+            }
+        }
+    }
+
+    // If changing scholar directly, check permissions
+    if let Some(new_scholar_id) = request.scholar_id {
+        if user.role != "admin" {
+            let has_access = crate::db::access::check_user_access_to_scholar(
+                pool.get_ref(),
+                auth.user_id,
+                new_scholar_id
+            )
+            .await
+            .map_err(|e| {
+                tracing::error!("Failed to check user access: {:?}", e);
+                AppError {
+                    message: Some("Failed to verify permissions".to_string()),
+                    cause: Some(e.to_string()),
+                    error_type: AppErrorType::InternalServerError,
+                }
+            })?;
+
+            if !has_access {
+                return Err(AppError {
+                    message: Some("You don't have permission to assign this file to the specified scholar".to_string()),
                     cause: None,
                     error_type: AppErrorType::ForbiddenError,
                 });
