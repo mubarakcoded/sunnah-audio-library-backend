@@ -9,8 +9,10 @@ jwt_auth_config:
 
 app_paths:
   static_images: "/api/v1/static/images"
-  static_uploads: "/api/v1/static/uploads"
+  static_uploads: "/api/v1/static/audio"
   static_audio: "/api/v1/static/audio"
+  images_dir: "/home/mubarak/Documents/my-documents/muryar_sunnah/web/images"
+  uploads_dir: "/home/mubarak/Documents/my-documents/muryar_sunnah/web/uploads"
 
 postgres:
   username: "postgres"

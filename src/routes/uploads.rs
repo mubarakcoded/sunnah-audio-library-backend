@@ -3,7 +3,6 @@ use actix_web::{get, post, web, HttpResponse, Responder};
 use futures_util::TryStreamExt;
 use sqlx::MySqlPool;
 use std::fs;
-use std::io::Write;
 use std::path::Path;
 use tracing::instrument;
 use uuid::Uuid;
@@ -14,7 +13,7 @@ use crate::{
 };
 
 // const UPLOAD_DIR: &str = "./uploads";
-const UPLOAD_DIR: &str = "/home/mubarak/Documents/my-documents/muryar_sunnah/web/uploads";
+// const UPLOAD_DIR: &str = "/home/mubarak/Documents/my-documents/muryar_sunnah/web/uploads";
 
 const MAX_FILE_SIZE: usize = 100 * 1024 * 1024; // 100MB
 
@@ -22,6 +21,7 @@ const MAX_FILE_SIZE: usize = 100 * 1024 * 1024; // 100MB
 #[post("/{book_id}/upload")]
 pub async fn upload_file(
     pool: web::Data<MySqlPool>,
+    config: web::Data<crate::core::config::AppConfig>,
     auth: JwtMiddleware,
     book_id: web::Path<i32>,
     mut payload: Multipart,
@@ -78,7 +78,8 @@ pub async fn upload_file(
     }
 
     // Create upload directory if it doesn't exist
-    fs::create_dir_all(UPLOAD_DIR).map_err(|e| {
+    let upload_dir = &config.app_paths.uploads_dir;
+    fs::create_dir_all(upload_dir).map_err(|e| {
         tracing::error!("Failed to create upload directory: {:?}", e);
         AppError {
             message: Some("Failed to prepare upload directory".to_string()),
@@ -205,7 +206,7 @@ pub async fn upload_file(
     
     let random_id = Uuid::new_v4().to_string()[..5].to_string(); // 5 char random ID
     let unique_filename = format!("{}_{}.{}", file_stem, random_id, file_extension);
-    let file_path = format!("{}/{}", UPLOAD_DIR, unique_filename);
+    let file_path = format!("{}/{}", upload_dir, unique_filename);
 
     fs::write(&file_path, &file_bytes).map_err(|e| {
         tracing::error!("Failed to write file {}: {:?}", file_path, e);
@@ -253,6 +254,7 @@ pub async fn upload_file(
 #[get("/{file_id}/download")]
 pub async fn download_file(
     pool: web::Data<MySqlPool>,
+    config: web::Data<crate::core::config::AppConfig>,
     auth: JwtMiddleware,
     file_id: web::Path<i32>,
     req: actix_web::HttpRequest,
@@ -280,7 +282,7 @@ pub async fn download_file(
     // }
 
     // Get file information
-    let file_info = uploads::get_file_download_info(pool.get_ref(), file_id)
+    let file_info = uploads::get_file_download_info(pool.get_ref(), &config.app_paths.uploads_dir, file_id)
         .await
         .map_err(|e| {
             tracing::error!("Failed to get file info: {:?}", e);

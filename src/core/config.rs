@@ -57,6 +57,8 @@ pub struct AppPaths {
     pub static_images: String,
     pub static_uploads: String,
     pub static_audio: String,
+    pub images_dir: String,
+    pub uploads_dir: String,
 }
 
 impl AppConfig {

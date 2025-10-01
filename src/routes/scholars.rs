@@ -179,6 +179,7 @@ pub async fn get_scholars_dropdown(
 #[post("")]
 pub async fn create_scholar(
     pool: web::Data<MySqlPool>,
+    config: web::Data<AppConfig>,
     auth: JwtMiddleware,
     payload: Multipart,
 ) -> Result<impl Responder, AppError> {
@@ -207,9 +208,8 @@ pub async fn create_scholar(
     let mut about: Option<String> = None;
     let mut state_id: Option<i32> = None;
     let mut image_filename: Option<String> = None;
-    const images_dir: &str = "/home/mubarak/Documents/my-documents/muryar_sunnah/web/images";
+    let images_dir = &config.app_paths.images_dir;
 
-    // let images_dir = "./static/images";
     fs::create_dir_all(images_dir).ok();
 
     let mut payload = payload;
@@ -284,6 +284,7 @@ pub async fn create_scholar(
 #[put("/{scholar_id}")]
 pub async fn update_scholar(
     pool: web::Data<MySqlPool>,
+    config: web::Data<AppConfig>,
     auth: JwtMiddleware,
     scholar_id: web::Path<i32>,
     payload: Multipart,
@@ -316,7 +317,7 @@ pub async fn update_scholar(
     let mut state_id: Option<i32> = None;
     let mut image_filename: Option<String> = None;
 
-    const images_dir: &str = "/home/mubarak/Documents/my-documents/muryar_sunnah/web/images";
+    let images_dir = &config.app_paths.images_dir;
     fs::create_dir_all(images_dir).ok();
 
     let mut payload = payload;

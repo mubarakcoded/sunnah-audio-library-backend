@@ -56,7 +56,7 @@ mod users;
 mod settings;
 
 use crate::routes::health_check::*;
-const IMAGES_DIR: &str = "/home/mubarak/Documents/my-documents/muryar_sunnah/web/images";
+// const IMAGES_DIR: &str = "/home/mubarak/Documents/my-documents/muryar_sunnah/web/images";
 // const IMAGES_DIR: &str = "./static/images";
 
 fn util_routes() -> Scope {
@@ -177,15 +177,15 @@ fn playlists_routes() -> Scope {
         .service(get_playlist_files)
 }
 
-fn static_files_routes() -> Scope {
+fn static_files_routes(config: &crate::core::config::AppConfig) -> Scope {
     scope("static")
         // Serve album images from `/static/images/`
-        .service(fs::Files::new("/images", IMAGES_DIR))
+        .service(fs::Files::new("/images", &config.app_paths.images_dir))
         // Serve audio files from `/static/audio/`
-        .service(fs::Files::new("/audio", "./static/audio").show_files_listing())
+        .service(fs::Files::new("/audio", &config.app_paths.uploads_dir))
 }
 
-pub fn sunnah_audio_routes(conf: &mut ServiceConfig) {
+pub fn sunnah_audio_routes(conf: &mut ServiceConfig, config: &crate::core::config::AppConfig) {
     conf.service(
         scope("api/v1")
             .service(auth_routes())
@@ -196,7 +196,7 @@ pub fn sunnah_audio_routes(conf: &mut ServiceConfig) {
             .service(subscriptions_routes())
             .service(play_history_routes())
             .service(playlists_routes())
-            .service(static_files_routes())
+            .service(static_files_routes(config))
             .service(util_routes()),
     );
 }

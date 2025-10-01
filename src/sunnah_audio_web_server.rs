@@ -66,7 +66,7 @@ pub async fn run(
             ])
             .supports_credentials();
         App::new()
-            .configure(sunnah_audio_routes)
+            .configure(|conf| sunnah_audio_routes(conf, &app_config))
             .app_data(mysql_pool.clone())
             .app_data(redis_client.clone())
             .app_data(redis_helper.clone())
