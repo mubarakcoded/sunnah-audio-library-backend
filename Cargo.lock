@@ -2050,6 +2050,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "id3"
+version = "1.16.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "aadb14a5ba1a0d58ecd4a29bfc9b8f1d119eee24aa01a62c1ec93eb9630a1d86"
+dependencies = [
+ "bitflags 2.6.0",
+ "byteorder",
+ "flate2",
+]
+
+[[package]]
 name = "ident_case"
 version = "1.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2468,6 +2479,12 @@ dependencies = [
  "serde_json",
  "serde_urlencoded",
 ]
+
+[[package]]
+name = "mp3-metadata"
+version = "0.3.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e4eaa3a228dc218005d769b88ce3a0310f49152f2029125289e94c49474c9cc4"
 
 [[package]]
 name = "mutually_exclusive_features"
@@ -4296,10 +4313,12 @@ dependencies = [
  "futures-util",
  "hex",
  "hmac",
+ "id3",
  "jsonwebtoken",
  "lapin",
  "lettre",
  "mockito",
+ "mp3-metadata",
  "once_cell",
  "openssl",
  "quickcheck",
