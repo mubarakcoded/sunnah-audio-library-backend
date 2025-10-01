@@ -52,13 +52,15 @@ pub async fn save_uploaded_file(
     })
 }
 
+const UPLOAD_DIR: &str = "/home/mubarak/Documents/my-documents/muryar_sunnah/web/uploads";
+
 pub async fn get_file_download_info(
     pool: &MySqlPool,
     file_id: i32,
 ) -> Result<FileDownloadInfo, AppError> {
     let file_data = sqlx::query!(
         r#"
-        SELECT 
+        SELECT
             f.id,
             f.name,
             f.location,
@@ -77,7 +79,7 @@ pub async fn get_file_download_info(
     let file_info = FileDownloadInfo {
         file_id: file_data.id,
         filename: file_data.name,
-        file_path: format!("./uploads/{}", file_data.location),
+        file_path: format!("{}/{}", UPLOAD_DIR, file_data.location),
         content_type: "application/octet-stream".to_string(), // Default since not stored
         file_size: file_data.size.parse().unwrap_or(0),
         book_id: file_data.book,

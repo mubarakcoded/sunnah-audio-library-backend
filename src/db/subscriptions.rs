@@ -88,7 +88,7 @@ pub async fn create_user_subscription(
     request: &CreateSubscriptionRequest,
 ) -> Result<UserSubscription, AppError> {
     let now = Utc::now().naive_utc();
-    let currency = request.payment_currency.as_deref().unwrap_or("USD");
+    let currency = request.payment_currency.as_deref().unwrap_or("CFA");
 
     let result = sqlx::query!(
         r#"

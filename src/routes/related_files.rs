@@ -45,7 +45,7 @@ pub struct SimpleFileInfo {
 }
 
 #[instrument(name = "Get File Suggestions", skip(pool, config))]
-#[get("/files/{file_id}/suggestions")]
+#[get("/{file_id}/suggestions")]
 pub async fn get_file_suggestions(
     pool: web::Data<MySqlPool>,
     config: web::Data<AppConfig>,

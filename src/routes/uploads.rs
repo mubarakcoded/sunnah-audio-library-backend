@@ -250,7 +250,7 @@ pub async fn upload_file(
 }
 
 #[instrument(name = "Download File", skip(pool, req))]
-#[get("/files/{file_id}/download")]
+#[get("/{file_id}/download")]
 pub async fn download_file(
     pool: web::Data<MySqlPool>,
     auth: JwtMiddleware,
@@ -260,24 +260,24 @@ pub async fn download_file(
     let file_id = file_id.into_inner();
 
     // Check if user has access to download this file
-    let has_access = uploads::check_file_access_permission(pool.get_ref(), auth.user_id, file_id)
-        .await
-        .map_err(|e| {
-            tracing::error!("Failed to check file access: {:?}", e);
-            AppError {
-                message: Some("Failed to verify file permissions".to_string()),
-                cause: Some(e.to_string()),
-                error_type: AppErrorType::InternalServerError,
-            }
-        })?;
+    // let has_access = uploads::check_file_access_permission(pool.get_ref(), auth.user_id, file_id)
+    //     .await
+    //     .map_err(|e| {
+    //         tracing::error!("Failed to check file access: {:?}", e);
+    //         AppError {
+    //             message: Some("Failed to verify file permissions".to_string()),
+    //             cause: Some(e.to_string()),
+    //             error_type: AppErrorType::InternalServerError,
+    //         }
+    //     })?;
 
-    if !has_access {
-        return Err(AppError {
-            message: Some("You don't have permission to download this file".to_string()),
-            cause: None,
-            error_type: AppErrorType::ForbiddenError,
-        });
-    }
+    // if !has_access {
+    //     return Err(AppError {
+    //         message: Some("You don't have permission to download this file".to_string()),
+    //         cause: None,
+    //         error_type: AppErrorType::ForbiddenError,
+    //     });
+    // }
 
     // Get file information
     let file_info = uploads::get_file_download_info(pool.get_ref(), file_id)

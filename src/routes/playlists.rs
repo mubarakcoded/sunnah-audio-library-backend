@@ -8,7 +8,7 @@ use actix_web::{delete, get, post, put, web, HttpResponse, Result};
 use sqlx::MySqlPool;
 
 #[tracing::instrument(name = "Create Playlist", skip(pool, claims, request))]
-#[post("/")]
+#[post("")]
 pub async fn create_playlist(
     pool: web::Data<MySqlPool>,
     claims: JwtClaims,
@@ -30,7 +30,7 @@ pub async fn create_playlist(
 }
 
 #[tracing::instrument(name = "Get My Playlists", skip(pool, claims))]
-#[get("/")]
+#[get("")]
 pub async fn get_my_playlists(
     pool: web::Data<MySqlPool>,
     claims: JwtClaims,
