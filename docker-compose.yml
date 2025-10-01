@@ -1,0 +1,71 @@
+version: '3.8'
+
+services:
+  sunnah-audio-service:
+    build: .
+    container_name: sunnah-audio-rust-service
+    restart: unless-stopped
+    ports:
+      - "8990:8990"
+    environment:
+      - SUNNAH_AUDIO_APP_ENVIRONMENT=production
+      - RUST_LOG=info
+    volumes:
+      # Mount configuration file
+      - ./src/core/configurations/production.yaml:/app/configurations/production.yaml:ro
+      # Mount static directories
+      - /home/muryarsunnah/htdocs/www.muryarsunnah.com/web/images:/app/static/images
+      - /home/muryarsunnah/htdocs/www.muryarsunnah.com/web/uploads:/app/static/uploads
+      - /home/muryarsunnah/htdocs/www.muryarsunnah.com/static/audio:/app/static/audio
+    depends_on:
+      - postgres
+      - redis
+    networks:
+      - sunnah-network
+
+  postgres:
+    image: postgres:15-alpine
+    container_name: sunnah-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: muryar_sunnah
+      POSTGRES_USER: muryar_user
+      POSTGRES_PASSWORD: your_secure_password
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - sunnah-network
+
+  redis:
+    image: redis:7-alpine
+    container_name: sunnah-redis
+    restart: unless-stopped
+    command: redis-server --requirepass your_redis_password
+    volumes:
+      - redis_data:/data
+    networks:
+      - sunnah-network
+
+  nginx:
+    image: nginx:alpine
+    container_name: sunnah-nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - /path/to/ssl/certificates:/etc/nginx/ssl:ro
+      - /home/muryarsunnah/htdocs/www.muryarsunnah.com/web:/var/www/html:ro
+    depends_on:
+      - sunnah-audio-service
+    networks:
+      - sunnah-network
+
+volumes:
+  postgres_data:
+  redis_data:
+
+networks:
+  sunnah-network:
+    driver: bridge
