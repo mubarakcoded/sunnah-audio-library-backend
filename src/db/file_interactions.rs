@@ -405,6 +405,15 @@ pub async fn log_file_download(
     .await
     .map_err(AppError::db_error)?;
 
+    // Increment total downloads counter for the file
+    sqlx::query!(
+        r#"UPDATE tbl_files SET downloads = downloads + 1 WHERE id = ?"#,
+        file_id
+    )
+    .execute(pool)
+    .await
+    .map_err(AppError::db_error)?;
+
     let log_id = result.last_insert_id() as i32;
     get_download_log_by_id(pool, log_id).await
 }
