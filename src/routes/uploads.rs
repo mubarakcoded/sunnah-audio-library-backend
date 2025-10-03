@@ -250,7 +250,7 @@ pub async fn upload_file(
     }))
 }
 
-#[instrument(name = "Download File", skip(pool, req))]
+#[instrument(name = "Download File", skip(pool, req, config, auth))]
 #[get("/{file_id}/download")]
 pub async fn download_file(
     pool: web::Data<MySqlPool>,
@@ -346,5 +346,6 @@ pub async fn download_file(
             format!("attachment; filename=\"{}\"", file_info.filename),
         ))
         .insert_header(("Content-Length", file_info.file_size.to_string()))
+        .insert_header(("Cache-Control", "private, max-age=86400")) // Cache for 24 hours, user-only
         .body(file_bytes))
 }

@@ -67,7 +67,8 @@ pub async fn get_file_download_info(
             f.location,
             f.size,
             f.book,
-            f.scholar
+            f.scholar,
+            f.type
         FROM tbl_files f
         WHERE f.id = ? AND f.status = 'active'
         "#,
@@ -81,7 +82,7 @@ pub async fn get_file_download_info(
         file_id: file_data.id,
         filename: file_data.name,
         file_path: format!("{}/{}", uploads_dir, file_data.location),
-        content_type: "application/octet-stream".to_string(), // Default since not stored
+        content_type: file_data.r#type, // Default since not stored
         file_size: file_data.size.parse().unwrap_or(0),
         book_id: file_data.book,
         scholar_id: file_data.scholar,

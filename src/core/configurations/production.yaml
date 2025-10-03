@@ -4,8 +4,8 @@ sunnah_audio_server_config:
   base_url: "https://www.muryarsunnah.com"
 
 jwt_auth_config:
-  secret: "YOUR_PRODUCTION_JWT_SECRET_HERE"
-  token_expiration_time: 7 #in days
+  secret: "erLh6Yv67dyvjycgbZB2vspPIymhB7zVCZM6k8Lu8mjdduP8rQ"
+  token_expiration_time: 3 #in days
 
 app_paths:
   static_images: "/api/v1/static/images"
@@ -14,24 +14,17 @@ app_paths:
   images_dir: "/home/muryarsunnah/htdocs/www.muryarsunnah.com/web/images"
   uploads_dir: "/home/muryarsunnah/htdocs/www.muryarsunnah.com/web/uploads"
 
-postgres:
-  username: "your_db_username"
-  password: "your_db_password"
-  host: "localhost"
-  port: 5432
-  database_name: "muryar_sunnah"
-
 mysql:
-  username: "your_mysql_username"
-  password: "your_mysql_password"
+  username: "muryarsunnah"
+  password: "tBJvu2CTyggJMscFTsJx"
   host: "localhost"
   port: 3306
-  database_name: "muryar_sunnah"
+  database_name: "muryarsunnah"
 
 redis:
   host: "localhost"
   port: 6379
-  password: "your_redis_password"
+  password:
 
 rabbitmq:
   url: "amqp://guest:guest@localhost:5672"
