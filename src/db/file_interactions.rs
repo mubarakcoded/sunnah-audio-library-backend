@@ -427,12 +427,12 @@ pub async fn get_download_log_by_id(
 
     Ok(DownloadLog {
         id: row.id,
-        user_id: row.user_id,
+        user_id: row.user_id.unwrap_or(0),
         subscription_id: row.subscription_id,
         file_id: row.file_id,
         download_ip: row.download_ip,
         user_agent: row.user_agent,
-        downloaded_at: row.downloaded_at.unwrap().naive_utc(),
+        downloaded_at: row.downloaded_at.naive_utc(),
     })
 }
 
@@ -493,12 +493,12 @@ pub async fn get_user_download_history(
         .into_iter()
         .map(|row| DownloadLog {
             id: row.id,
-            user_id: row.user_id,
+            user_id: row.user_id.unwrap_or(0),
             subscription_id: row.subscription_id,
             file_id: row.file_id,
             download_ip: row.download_ip,
             user_agent: row.user_agent,
-            downloaded_at: row.downloaded_at.unwrap().naive_utc(),
+            downloaded_at: row.downloaded_at.naive_utc(),
         })
         .collect();
 

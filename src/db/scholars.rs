@@ -1,4 +1,4 @@
-use crate::core::{AppConfig, AppError, AppErrorType};
+use crate::core::{AppConfig, AppError};
 use crate::models::pagination::PaginationQuery;
 use crate::models::scholars::{CreateScholarRequest, Scholar, ScholarDetails, ScholarSearchResult, ScholarStatistics};
 use chrono::Utc;
