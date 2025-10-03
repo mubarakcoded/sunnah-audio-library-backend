@@ -8,7 +8,6 @@ use sqlx::ConnectOptions;
 #[derive(Deserialize, Clone, Debug)]
 pub struct AppConfig {
     pub sunnah_audio_server_config: SunnahWebServer,
-    pub postgres: PostgresConfig,
     pub mysql: MySqlConfig,
     pub redis: RedisConfig,
     pub jwt_auth_config: JwtAuthConfig,
@@ -112,27 +111,27 @@ impl RedisConfig {
     }
 }
 
-#[derive(Deserialize, Clone, Debug)]
-pub struct PostgresConfig {
-    pub username: String,
-    pub password: Secret<String>,
-    pub host: String,
-    pub port: u16,
-    pub database_name: String,
-}
+// #[derive(Deserialize, Clone, Debug)]
+// pub struct PostgresConfig {
+//     pub username: String,
+//     pub password: Secret<String>,
+//     pub host: String,
+//     pub port: u16,
+//     pub database_name: String,
+// }
 
-impl PostgresConfig {
-    pub fn connect(&self) -> PgConnectOptions {
-        let options = PgConnectOptions::new()
-            .host(&self.host)
-            .username(&self.username)
-            .password(self.password.expose_secret())
-            .port(self.port)
-            .database(&self.database_name);
+// impl PostgresConfig {
+//     pub fn connect(&self) -> PgConnectOptions {
+//         let options = PgConnectOptions::new()
+//             .host(&self.host)
+//             .username(&self.username)
+//             .password(self.password.expose_secret())
+//             .port(self.port)
+//             .database(&self.database_name);
 
-        options.log_statements(tracing::log::LevelFilter::Trace)
-    }
-}
+//         options.log_statements(tracing::log::LevelFilter::Trace)
+//     }
+// }
 
 #[derive(Deserialize, Clone, Debug)]
 pub struct MySqlConfig {
