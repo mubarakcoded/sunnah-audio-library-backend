@@ -18,6 +18,7 @@ pub async fn fetch_scholars(
         FROM tbl_scholars
         JOIN tbl_states ON tbl_scholars.state = tbl_states.id
         WHERE tbl_scholars.status = 'active'
+        ORDER BY tbl_scholars.priority DESC
         LIMIT ? OFFSET ?",
         pagination.per_page,
         pagination.offset()
@@ -61,6 +62,7 @@ pub async fn fetch_scholars_by_state(
         FROM tbl_scholars
         JOIN tbl_states ON tbl_scholars.state = tbl_states.id
         WHERE tbl_states.id = ? AND tbl_scholars.status = 'active'
+        ORDER BY tbl_scholars.priority DESC
         LIMIT ? OFFSET ?",
         state_id,
         pagination.per_page,
