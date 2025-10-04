@@ -12,7 +12,7 @@ use sqlx::MySqlPool;
 
 // File Reports
 #[tracing::instrument(name = "Report File", skip(pool, claims, request))]
-#[post("/files/reports")]
+#[post("/reports")]
 pub async fn report_file(
     pool: web::Data<MySqlPool>,
     claims: JwtClaims,
