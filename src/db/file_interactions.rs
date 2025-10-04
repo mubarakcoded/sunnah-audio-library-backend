@@ -6,7 +6,7 @@ use crate::models::file_interactions::{
     DownloadLog, DownloadStats
 };
 use sqlx::MySqlPool;
-use chrono::Utc;
+use chrono::{DateTime, Utc};
 
 // File Reports
 pub async fn create_file_report(
@@ -60,9 +60,10 @@ pub async fn get_file_report_by_id(
         description: row.description,
         status: row.status,
         admin_notes: row.admin_notes,
-        resolved_by: Some(row.resolved_by),
+        resolved_by: row.resolved_by,
         created_at: row.created_at.naive_utc(),
-        resolved_at: Some(row.resolved_at.naive_utc()),
+        resolved_at: row.resolved_at.map(|dt: DateTime<Utc>| dt.naive_utc()),
+
     })
 }
 
@@ -127,9 +128,9 @@ pub async fn get_pending_reports(
             description: row.description,
             status: row.status,
             admin_notes: row.admin_notes,
-            resolved_by: Some(row.resolved_by),
+            resolved_by: row.resolved_by,
             created_at: row.created_at.naive_utc(),
-            resolved_at: Some(row.resolved_at.naive_utc()),
+            resolved_at: row.resolved_at.map(|dt: DateTime<Utc>| dt.naive_utc()),
         })
         .collect();
 
@@ -196,7 +197,7 @@ pub async fn get_file_like(
         id: row.id,
         user_id: row.user_id,
         file_id: row.file_id,
-        created_at: row.created_at.unwrap().naive_utc(),
+        created_at: row.created_at.naive_utc(),
     })
 }
 
@@ -283,8 +284,8 @@ pub async fn get_file_comment_by_id(
         parent_id: row.parent_id,
         comment: row.comment,
         is_approved: row.is_approved.unwrap_or(0) != 0,
-        created_at: row.created_at.unwrap().naive_utc(),
-        updated_at: row.updated_at.unwrap().naive_utc(),
+        created_at: row.created_at.naive_utc(),
+        updated_at: row.updated_at.naive_utc(),
     })
 }
 
@@ -319,8 +320,8 @@ pub async fn get_file_comments(
             parent_id: row.parent_id,
             comment: row.comment,
             is_approved: row.is_approved.unwrap_or(0) != 0,
-            created_at: row.created_at.unwrap().naive_utc(),
-            updated_at: row.updated_at.unwrap().naive_utc(),
+            created_at: row.created_at.naive_utc(),
+            updated_at: row.updated_at.naive_utc(),
             replies: Vec::new(),
         };
 

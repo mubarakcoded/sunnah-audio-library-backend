@@ -60,8 +60,8 @@ pub async fn get_playlist_by_id(pool: &MySqlPool, playlist_id: i32) -> Result<Pl
         cover_image: row.cover_image,
         total_files: row.total_files.unwrap_or(0),
         total_duration: row.total_duration.unwrap_or(0),
-        created_at: row.created_at.unwrap().naive_utc(),
-        updated_at: row.updated_at.unwrap().naive_utc(),
+        created_at: row.created_at.naive_utc(),
+        updated_at: row.updated_at.naive_utc(),
     })
 }
 
@@ -96,8 +96,8 @@ pub async fn get_user_playlists(
             cover_image: row.cover_image,
             total_files: row.total_files.unwrap_or(0),
             total_duration: row.total_duration.unwrap_or(0),
-            created_at: row.created_at.unwrap().naive_utc(),
-            updated_at: row.updated_at.unwrap().naive_utc(),
+            created_at: row.created_at.naive_utc(),
+            updated_at: row.updated_at.naive_utc(),
             owner_name: row.owner_name,
         })
         .collect();
@@ -142,8 +142,8 @@ pub async fn get_public_playlists(
             cover_image: row.cover_image,
             total_files: row.total_files.unwrap_or(0),
             total_duration: row.total_duration.unwrap_or(0),
-            created_at: row.created_at.unwrap().naive_utc(),
-            updated_at: row.updated_at.unwrap().naive_utc(),
+            created_at: row.created_at.naive_utc(),
+            updated_at: row.updated_at.naive_utc(),
             owner_name: row.owner_name,
         })
         .collect();
@@ -339,8 +339,8 @@ pub async fn get_playlist_files(
             scholar_name: row.scholar_name,
             duration: row.duration,
             sort_order: row.sort_order.unwrap_or(0),
-            added_at: row.added_at.unwrap().naive_utc(),
-        })
+            added_at: row.added_at.naive_utc(),
+        }) 
         .collect();
 
     Ok(files)
@@ -364,7 +364,7 @@ async fn get_playlist_file_by_id(
         playlist_id: row.playlist_id,
         file_id: row.file_id,
         sort_order: row.sort_order.unwrap_or(0),
-        created_at: row.created_at.unwrap().naive_utc(),
+        created_at: row.created_at.naive_utc(),
     })
 }
 

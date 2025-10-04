@@ -88,7 +88,7 @@ pub async fn upload_file(
         }
     })?;
 
-    let mut description: Option<String> = None;
+    let mut _description: Option<String> = None;
     let mut file_data: Option<(String, Vec<u8>, String)> = None;
 
 
@@ -124,7 +124,7 @@ pub async fn upload_file(
                     }
                 })?;
                 if !desc.is_empty() {
-                    description = Some(desc);
+                    _description = Some(desc);
                 }
             }
             "file" => {
