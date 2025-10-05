@@ -106,6 +106,16 @@ fn files_routes() -> Scope {
 fn auth_routes() -> Scope {
     scope("auth")
         // Removed old login service - u
+        .service(register)
+        .service(login)
+        .service(refresh_token_endpoint)
+        .service(logout)
+        .service(get_profile)
+        .service(update_profile)
+        .service(change_password)
+        .service(forgot_password)
+        .service(reset_password)
+        .service(deactivate_account)
         .service(get_user_permissions)
         .service(grant_access)
         .service(revoke_access)
@@ -132,16 +142,16 @@ fn scholars_routes() -> Scope {
 
 fn users_routes() -> Scope {
     scope("users")
-        .service(register)
-        .service(login)
-        .service(refresh_token_endpoint)
-        .service(logout)
-        .service(get_profile)
-        .service(update_profile)
-        .service(change_password)
-        .service(forgot_password)
-        .service(reset_password)
-        .service(deactivate_account)
+        // .service(register)
+        // .service(login)
+        // .service(refresh_token_endpoint)
+        // .service(logout)
+        // .service(get_profile)
+        // .service(update_profile)
+        // .service(change_password)
+        // .service(forgot_password)
+        // .service(reset_password)
+        // .service(deactivate_account)
 }
 
 fn subscriptions_routes() -> Scope {
