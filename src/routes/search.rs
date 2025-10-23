@@ -8,8 +8,9 @@ use sqlx::MySqlPool;
 use tracing::instrument;
 
 use crate::{
-    core::{AppError, AppErrorType, AppSuccessResponse, AppConfig},
-    db::{books, files, scholars}, models::pagination::PaginationMeta,
+    core::{AppConfig, AppError, AppErrorType, AppSuccessResponse},
+    db::{books, files, scholars},
+    models::pagination::PaginationMeta,
 };
 
 #[derive(Deserialize)]
@@ -42,7 +43,7 @@ pub async fn full_text_search(
     let (scholars_res, books_res, files_res) = tokio::join!(
         scholars::search_scholars(pool.get_ref(), &config, search_term, page, per_page),
         books::search_books(pool.get_ref(), &config, search_term, page, per_page),
-        files::search_files(pool.get_ref(), search_term, page, per_page),
+        files::search_files(pool.get_ref(), &config, search_term, page, per_page),
     );
 
     let (scholars, books, files) = (

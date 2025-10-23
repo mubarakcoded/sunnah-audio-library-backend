@@ -128,21 +128,26 @@ pub async fn fetch_recent_files(
 
 pub async fn search_files(
     pool: &MySqlPool,
+    config: &AppConfig,
     search_term: &str,
     page: i32,
     items_per_page: i32,
 ) -> Result<(Vec<FileSearchResult>, i64), AppError> {
     let offset = (page - 1) * items_per_page;
 
-    let files = sqlx::query_as!(
-        FileSearchResult,
+    let raw_files = sqlx::query!(
         r#"
         SELECT 
-            f.id,
-            f.name AS file_name,
-            s.name AS scholar_name,
-            CONCAT('http://yourdomain.com/images/scholars/', s.image) AS image,
-            f.date
+            f.id as file_id,
+            f.name as file_name,
+            f.book as book_id,
+            f.size as file_size,
+            f.duration as file_duration,
+            f.downloads,
+            f.location,
+            s.id as scholar_id,
+            s.name as scholar_name,
+            s.image as scholar_image
         FROM tbl_files f
         JOIN tbl_scholars s ON f.scholar = s.id
         WHERE (f.name LIKE ? OR f.location LIKE ?) AND f.status = 'active'
@@ -157,6 +162,23 @@ pub async fn search_files(
     .fetch_all(pool)
     .await
     .map_err(|e| AppError::db_error(e))?;
+
+    // Convert raw data to FileSearchResult struct with formatted URLs
+    let files: Vec<FileSearchResult> = raw_files
+        .into_iter()
+        .map(|row| FileSearchResult {
+            file_id: row.file_id,
+            file_name: row.file_name,
+            file_url: config.get_upload_url(&row.location),
+            file_size: row.file_size,
+            file_duration: row.file_duration,
+            downloads: row.downloads,
+            book_id: row.book_id,
+            scholar_id: row.scholar_id,
+            scholar_name: row.scholar_name,
+            scholar_image: config.get_image_url(&row.scholar_image),
+        })
+        .collect();
 
     let total_count: i64 = sqlx::query_scalar!(
         r#"

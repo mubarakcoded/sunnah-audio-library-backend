@@ -73,11 +73,16 @@ pub struct FileStatistics {
 
 #[derive(Debug, Serialize)]
 pub struct FileSearchResult {
-    pub id: i32,
+    pub file_id: i32,
     pub file_name: String,
+    pub file_url: String,
+    pub file_size: String,
+    pub file_duration: String,
+    pub downloads: i32,
+    pub book_id: i32,
+    pub scholar_id: i32,
     pub scholar_name: String,
-    pub image: Option<String>, // Scholar image URL
-    pub date: DateTime<Local>,
+    pub scholar_image: String,
 }
 
 #[derive(Debug, Serialize)]
