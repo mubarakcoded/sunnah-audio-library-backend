@@ -269,24 +269,26 @@ pub async fn fetch_book_id_for_file(pool: &MySqlPool, file_id: i32) -> Result<i3
 
 pub async fn fetch_related_files(
     pool: &MySqlPool,
+    config: &AppConfig,
     book_id: i32,
     exclude_file_id: i32,
     pagination: &PaginationQuery,
 ) -> Result<(Vec<RelatedFiles>, i64), AppError> {
-    // let offset = (page - 1) * items_per_page;
-
-    let related_files = sqlx::query_as!(
-        RelatedFiles,
+    let raw_files = sqlx::query!(
         r#"
         SELECT 
             f.id,
             f.name,
+            f.location,
             f.duration,
             f.downloads,
             f.size,
             f.date,
-            CONCAT('http://yourdomain.com/files/', f.name) as url
+            f.book as book_id,
+            s.name as scholar_name,
+            s.image as scholar_image
         FROM tbl_files f
+        JOIN tbl_scholars s ON f.scholar = s.id
         WHERE f.book = ? AND f.id != ? AND f.status = 'active'
         ORDER BY f.created_at DESC
         LIMIT ? OFFSET ?
@@ -302,6 +304,23 @@ pub async fn fetch_related_files(
         tracing::error!("Failed to fetch related files: {:?}", e);
         AppError::db_error(e.to_string())
     })?;
+
+    // Convert raw data to RelatedFiles struct with formatted URLs
+    let related_files: Vec<RelatedFiles> = raw_files
+        .into_iter()
+        .map(|row| RelatedFiles {
+            id: row.id,
+            name: row.name,
+            file_url: config.get_upload_url(&row.location),
+            duration: row.duration,
+            size: row.size,
+            downloads: row.downloads,
+            date: row.date.into(),
+            book_id: row.book_id,
+            scholar_name: row.scholar_name,
+            scholar_image: config.get_image_url(&row.scholar_image),
+        })
+        .collect();
 
     let total_count: i64 = sqlx::query_scalar!(
         r#"
@@ -662,13 +681,10 @@ pub async fn check_file_owner_or_admin(
     _file_id: i32,
 ) -> Result<bool, AppError> {
     // First check if user is admin
-    let user_role = sqlx::query_scalar!(
-        "SELECT role FROM tbl_users WHERE id = ?",
-        user_id
-    )
-    .fetch_one(pool)
-    .await
-    .map_err(AppError::db_error)?;
+    let user_role = sqlx::query_scalar!("SELECT role FROM tbl_users WHERE id = ?", user_id)
+        .fetch_one(pool)
+        .await
+        .map_err(AppError::db_error)?;
 
     if user_role == "admin" {
         return Ok(true);

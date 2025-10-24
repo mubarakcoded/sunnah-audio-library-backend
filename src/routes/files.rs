@@ -120,6 +120,7 @@ pub async fn view_file(
 #[get("/{file_id}/related")]
 pub async fn get_related_files(
     pool: web::Data<MySqlPool>,
+    config: web::Data<AppConfig>,
     file_id: web::Path<i32>,
     pagination: web::Query<PaginationQuery>,
 ) -> Result<impl Responder, AppError> {
@@ -142,7 +143,7 @@ pub async fn get_related_files(
 
     // Fetch related files
     let (related_files, total_count) =
-        files::fetch_related_files(pool.get_ref(), book_id, file_id, &pagination).await?;
+        files::fetch_related_files(pool.get_ref(), &config, book_id, file_id, &pagination).await?;
 
     let pagination_meta = PaginationMeta::new(pagination.page, pagination.per_page, total_count);
 

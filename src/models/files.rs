@@ -106,11 +106,14 @@ pub struct ViewFileDetails {
 pub struct RelatedFiles {
     pub id: i32,
     pub name: String,
+    pub file_url: String,
     pub duration: String,
     pub size: String,
     pub downloads: i32,
     pub date: DateTime<Local>,
-    pub url: Option<String>,
+    pub book_id: i32,
+    pub scholar_name: String,
+    pub scholar_image: String,
 }
 
 #[derive(Deserialize)]
