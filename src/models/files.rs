@@ -93,6 +93,8 @@ pub struct ViewFileDetails {
     pub duration: String,
     pub size: String,
     pub created_at: DateTime<Local>,
+    pub book_id: i32,
+    pub book_name: String,
     pub book_image: Option<String>, // URL to the book's image
     pub scholar_id: i32,
     pub scholar_name: String,
