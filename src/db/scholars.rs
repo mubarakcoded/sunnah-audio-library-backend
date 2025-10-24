@@ -112,11 +112,10 @@ pub async fn search_scholars(
             tbl_states.name AS state
         FROM tbl_scholars
         JOIN tbl_states ON tbl_scholars.state = tbl_states.id
-        WHERE (tbl_scholars.name LIKE ? OR tbl_scholars.about LIKE ?) 
+        WHERE (tbl_scholars.name LIKE ? ) 
         AND tbl_scholars.status = 'active'
         LIMIT ? OFFSET ?
         "#,
-        format!("%{}%", search_term),
         format!("%{}%", search_term),
         items_per_page,
         offset
