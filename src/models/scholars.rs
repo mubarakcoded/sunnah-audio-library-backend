@@ -44,6 +44,7 @@ pub struct CreateScholarRequest {
     pub about: Option<String>,
     pub state_id: i32,
     pub image: Option<String>,
+    pub priority: Option<i32>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -52,6 +53,7 @@ pub struct UpdateScholarRequest {
     pub about: Option<String>,
     pub state_id: Option<i32>,
     pub image: Option<String>,
+    pub priority: Option<i32>,
 }
 
 #[derive(Debug, Serialize)]

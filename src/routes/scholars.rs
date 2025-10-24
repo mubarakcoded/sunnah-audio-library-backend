@@ -203,10 +203,11 @@ pub async fn create_scholar(
         });
     }
 
-    // Parse multipart: fields (name, about, state_id) + optional image file
+    // Parse multipart: fields (name, about, state_id, priority) + optional image file
     let mut name: Option<String> = None;
     let mut about: Option<String> = None;
     let mut state_id: Option<i32> = None;
+    let mut priority: Option<i32> = None;
     let mut image_filename: Option<String> = None;
     let images_dir = &config.app_paths.images_dir;
 
@@ -236,6 +237,9 @@ pub async fn create_scholar(
             } else if field_name == "state_id" {
                 let bytes = field.try_next().await.map_err(|e| AppError::bad_request(format!("Invalid state_id: {}", e)))?.unwrap_or_default();
                 state_id = String::from_utf8(bytes.to_vec()).ok().and_then(|s| s.parse::<i32>().ok());
+            } else if field_name == "priority" {
+                let bytes = field.try_next().await.map_err(|e| AppError::bad_request(format!("Invalid priority: {}", e)))?.unwrap_or_default();
+                priority = String::from_utf8(bytes.to_vec()).ok().and_then(|s| s.parse::<i32>().ok());
             }
         }
     }
@@ -259,6 +263,7 @@ pub async fn create_scholar(
         about,
         state_id: scholar_state_id,
         image: image_filename,
+        priority,
     };
 
     let scholar_id = scholars::create_scholar(pool.get_ref(), &request, auth.user_id, &slug_value)
@@ -315,6 +320,7 @@ pub async fn update_scholar(
     let mut name: Option<String> = None;
     let mut about: Option<String> = None;
     let mut state_id: Option<i32> = None;
+    let mut priority: Option<i32> = None;
     let mut image_filename: Option<String> = None;
 
     let images_dir = &config.app_paths.images_dir;
@@ -344,6 +350,9 @@ pub async fn update_scholar(
             } else if field_name == "state_id" {
                 let bytes = field.try_next().await.map_err(|e| AppError::bad_request(format!("Invalid state_id: {}", e)))?.unwrap_or_default();
                 state_id = String::from_utf8(bytes.to_vec()).ok().and_then(|s| s.parse::<i32>().ok());
+            } else if field_name == "priority" {
+                let bytes = field.try_next().await.map_err(|e| AppError::bad_request(format!("Invalid priority: {}", e)))?.unwrap_or_default();
+                priority = String::from_utf8(bytes.to_vec()).ok().and_then(|s| s.parse::<i32>().ok());
             }
         }
     }
@@ -353,6 +362,7 @@ pub async fn update_scholar(
         about,
         state_id,
         image: image_filename,
+        priority,
     };
 
     scholars::update_scholar(pool.get_ref(), scholar_id, &request)

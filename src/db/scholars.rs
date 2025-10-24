@@ -373,19 +373,21 @@ pub async fn create_scholar(
 
     let about_value: String = request.about.clone().unwrap_or_default();
     let image_value: &str = request.image.as_deref().unwrap_or("scholar.jpg");
+    let priority_value: i32 = request.priority.unwrap_or(0);
     let now = Utc::now().naive_utc();
 
 
     let result = sqlx::query!(
         r#"
-        INSERT INTO tbl_scholars (name, about, state, image, slug, status, created_by, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, 'active', ?, ?, ?)
+        INSERT INTO tbl_scholars (name, about, state, image, slug, priority, status, created_by, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, 'active', ?, ?, ?)
         "#,
         request.name,
         about_value,
         request.state_id,
         image_value,
         slug_value,
+        priority_value,
         user_id,
         now,
         now
@@ -445,6 +447,18 @@ pub async fn update_scholar(
         sqlx::query!(
             "UPDATE tbl_scholars SET image = ?, updated_at = ? WHERE id = ? AND status = 'active'",
             image,
+            now,
+            scholar_id
+        )
+        .execute(pool)
+        .await
+        .map_err(AppError::db_error)?;
+    }
+
+    if let Some(priority) = request.priority {
+        sqlx::query!(
+            "UPDATE tbl_scholars SET priority = ?, updated_at = ? WHERE id = ? AND status = 'active'",
+            priority,
             now,
             scholar_id
         )
