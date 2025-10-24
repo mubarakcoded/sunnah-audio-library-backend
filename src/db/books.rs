@@ -11,15 +11,22 @@ pub async fn fetch_books_by_scholar(
     pagination: &PaginationQuery,
 ) -> Result<(Vec<Book>, i64), AppError> {
     let raw_books = sqlx::query!(
-        "SELECT
-        id,
-        name,
-        image,
-        created_at,
-        created_by
-        FROM tbl_books 
-        WHERE scholar_id = ? AND status = 'active'
-        LIMIT ? OFFSET ?",
+        r#"
+        SELECT
+            b.id,
+            b.name,
+            b.image,
+            b.created_at,
+            b.created_by,
+            COUNT(DISTINCT f.id) as files_count,
+            COUNT(DISTINCT dl.id) as downloads
+        FROM tbl_books b
+        LEFT JOIN tbl_files f ON b.id = f.book AND f.status = 'active'
+        LEFT JOIN tbl_download_logs dl ON f.id = dl.file_id
+        WHERE b.scholar_id = ? AND b.status = 'active'
+        GROUP BY b.id, b.name, b.image, b.created_at, b.created_by
+        LIMIT ? OFFSET ?
+        "#,
         scholar_id,
         pagination.per_page,
         pagination.offset()
@@ -37,6 +44,8 @@ pub async fn fetch_books_by_scholar(
             image: config.get_image_url(&row.image),
             created_at: row.created_at.naive_utc(),
             created_by: row.created_by,
+            files_count: row.files_count,
+            downloads: row.downloads,
         })
         .collect();
 

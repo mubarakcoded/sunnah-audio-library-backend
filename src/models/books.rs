@@ -9,6 +9,8 @@ pub struct Book {
     pub image: String,
     pub created_at: NaiveDateTime,
     pub created_by: i32,
+    pub files_count: i64,
+    pub downloads: i64,
 }
 
 #[derive(Debug, Serialize)]
