@@ -198,20 +198,26 @@ pub async fn search_files(
 
 pub async fn fetch_file_details(
     pool: &MySqlPool,
+    config: &AppConfig,
     file_id: i32,
 ) -> Result<ViewFileDetails, AppError> {
-    let file_details = sqlx::query_as!(
-        ViewFileDetails,
+    let raw_file = sqlx::query!(
         r#"
         SELECT 
             f.id as file_id,
             f.name as file_name,
+            f.location,
             f.duration,
             f.size,
             f.date as created_at,
-            CONCAT('http://yourdomain.com/images/books/', b.image) as book_image
+            f.downloads,
+            b.image as book_image,
+            s.id as scholar_id,
+            s.name as scholar_name,
+            s.image as scholar_image
         FROM tbl_files f
         JOIN tbl_books b ON f.book = b.id
+        JOIN tbl_scholars s ON f.scholar = s.id
         WHERE f.id = ? AND f.status = 'active'
         "#,
         file_id
@@ -223,7 +229,19 @@ pub async fn fetch_file_details(
         AppError::db_error(e.to_string())
     })?;
 
-    Ok(file_details)
+    Ok(ViewFileDetails {
+        file_id: raw_file.file_id,
+        file_name: raw_file.file_name,
+        file_url: config.get_upload_url(&raw_file.location),
+        duration: raw_file.duration,
+        size: raw_file.size,
+        created_at: raw_file.created_at.into(),
+        book_image: Some(config.get_image_url(&raw_file.book_image)),
+        scholar_id: raw_file.scholar_id,
+        scholar_name: raw_file.scholar_name,
+        scholar_image: config.get_image_url(&raw_file.scholar_image),
+        downloads: raw_file.downloads,
+    })
 }
 
 pub async fn fetch_book_id_for_file(pool: &MySqlPool, file_id: i32) -> Result<i32, AppError> {

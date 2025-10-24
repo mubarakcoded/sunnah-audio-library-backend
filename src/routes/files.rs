@@ -93,10 +93,11 @@ pub async fn get_recent_files(
 #[get("/{file_id}/view")]
 pub async fn view_file(
     pool: web::Data<MySqlPool>,
+    config: web::Data<AppConfig>,
     file_id: web::Path<i32>,
 ) -> Result<impl Responder, AppError> {
     let file_id = file_id.into_inner();
-    let file_details = files::fetch_file_details(pool.get_ref(), file_id)
+    let file_details = files::fetch_file_details(pool.get_ref(), &config, file_id)
         .await
         .map_err(|e| {
             tracing::error!("Failed to fetch file details {}: {:?}", file_id, e);

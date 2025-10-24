@@ -89,10 +89,15 @@ pub struct FileSearchResult {
 pub struct ViewFileDetails {
     pub file_id: i32,
     pub file_name: String,
+    pub file_url: String,
     pub duration: String,
     pub size: String,
     pub created_at: DateTime<Local>,
     pub book_image: Option<String>, // URL to the book's image
+    pub scholar_id: i32,
+    pub scholar_name: String,
+    pub scholar_image: String,
+    pub downloads: i32,
 }
 
 #[derive(Debug, Serialize)]
