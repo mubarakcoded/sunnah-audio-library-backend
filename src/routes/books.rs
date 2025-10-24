@@ -171,8 +171,7 @@ pub async fn create_book(
     let mut name: Option<String> = None;
     let mut about: Option<String> = None;
     let mut scholar_id_field: Option<i32> = None;
-    let mut image_field_data: Option<Vec<u8>> = None;
-    let mut image_extension: Option<String> = None;
+    let mut image_filename: Option<String> = None;
 
     let images_dir = &config.app_paths.images_dir;
     fs::create_dir_all(images_dir).ok();
@@ -184,18 +183,15 @@ pub async fn create_book(
         
         if !field_name.is_empty() {
             if field_name == "image" {
-                // Store image data in memory, don't write to disk yet
-                let file_ext = cd.get_filename()
-                    .and_then(|f| std::path::Path::new(f).extension().and_then(|e| e.to_str()))
-                    .unwrap_or("jpg")
-                    .to_string();
-                image_extension = Some(file_ext);
-                
-                let mut img_data = Vec::new();
+                let file_ext = cd.get_filename().and_then(|f| std::path::Path::new(f).extension().and_then(|e| e.to_str())).unwrap_or("jpg");
+                let generated = format!("book_{}.{}", Uuid::new_v4(), file_ext);
+                let filepath = format!("{}/{}", images_dir, generated);
+                let mut f = fs::File::create(&filepath)
+                    .map_err(|e| AppError::internal_error(format!("Failed to create image: {}", e)))?;
                 while let Some(chunk) = field.try_next().await.map_err(|e| AppError::internal_error(format!("Failed to read image: {}", e)))? {
-                    img_data.extend_from_slice(&chunk);
+                    f.write_all(&chunk).map_err(|e| AppError::internal_error(format!("Failed to write image: {}", e)))?;
                 }
-                image_field_data = Some(img_data);
+                image_filename = Some(generated);
             } else if field_name == "name" {
                 let bytes = field.try_next().await.map_err(|e| AppError::bad_request(format!("Invalid name: {}", e)))?.unwrap_or_default();
                 name = Some(String::from_utf8(bytes.to_vec()).unwrap_or_default());
@@ -230,22 +226,6 @@ pub async fn create_book(
             cause: None,
             error_type: AppErrorType::ConflictError,
         });
-    }
-
-    // Now process and save the image if it exists
-    let mut image_filename: Option<String> = None;
-    if let Some(img_data) = image_field_data {
-        let images_dir = &config.app_paths.images_dir;
-        fs::create_dir_all(images_dir).ok();
-        
-        let file_ext = image_extension.unwrap_or_else(|| "jpg".to_string());
-        let generated = format!("book_{}.{}", Uuid::new_v4(), file_ext);
-        let filepath = format!("{}/{}", images_dir, generated);
-        
-        fs::write(&filepath, img_data)
-            .map_err(|e| AppError::internal_error(format!("Failed to save image: {}", e)))?;
-        
-        image_filename = Some(generated);
     }
 
     let request = CreateBookRequest {
