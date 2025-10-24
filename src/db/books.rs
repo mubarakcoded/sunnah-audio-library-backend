@@ -1,8 +1,8 @@
-use crate::core::{AppError, AppConfig};
-use crate::models::books::{Book, BookSearchResult, BookDetails, BookStatistics};
+use crate::core::{AppConfig, AppError};
+use crate::models::books::{Book, BookDetails, BookSearchResult, BookStatistics};
 use crate::models::pagination::PaginationQuery;
-use sqlx::MySqlPool;
 use chrono::Utc;
+use sqlx::MySqlPool;
 
 pub async fn fetch_books_by_scholar(
     pool: &MySqlPool,
@@ -36,7 +36,7 @@ pub async fn fetch_books_by_scholar(
             name: row.name,
             image: config.get_image_url(&row.image),
             created_at: row.created_at.naive_utc(),
-            created_by: row.created_by
+            created_by: row.created_by,
         })
         .collect();
 
@@ -65,9 +65,11 @@ pub async fn search_books(
         SELECT 
             b.id,
             b.name,
-            b.image
+            b.image,
+            s.name as scholar_name
         FROM tbl_books b
-        WHERE (b.name LIKE ? OR b.about LIKE ?) AND b.status = 'active'
+        JOIN tbl_scholars s ON b.scholar_id = s.id
+        WHERE (b.name LIKE ? OR b.about LIKE ?) AND b.status = 'active' AND s.status = 'active'
         LIMIT ? OFFSET ?
         "#,
         format!("%{}%", search_term),
@@ -86,14 +88,16 @@ pub async fn search_books(
             id: row.id,
             name: Some(row.name),
             image: Some(config.get_image_url(&row.image)),
+            scholar_name: Some(row.scholar_name),
         })
         .collect();
 
     let total_count: i64 = sqlx::query_scalar!(
         r#"
         SELECT COUNT(*) 
-        FROM tbl_books 
-        WHERE (name LIKE ? OR about LIKE ?) AND status = 'active'
+        FROM tbl_books b
+        JOIN tbl_scholars s ON b.scholar_id = s.id
+        WHERE (b.name LIKE ? OR b.about LIKE ?) AND b.status = 'active' AND s.status = 'active'
         "#,
         format!("%{}%", search_term),
         format!("%{}%", search_term)
@@ -224,13 +228,10 @@ pub async fn check_user_has_book_access(
     scholar_id: i32,
 ) -> Result<Option<bool>, AppError> {
     // First check if user is admin
-    let user_role = sqlx::query_scalar!(
-        "SELECT role FROM tbl_users WHERE id = ?",
-        user_id
-    )
-    .fetch_one(pool)
-    .await
-    .map_err(AppError::db_error)?;
+    let user_role = sqlx::query_scalar!("SELECT role FROM tbl_users WHERE id = ?", user_id)
+        .fetch_one(pool)
+        .await
+        .map_err(AppError::db_error)?;
 
     if user_role == "admin" {
         return Ok(Some(true));
@@ -294,7 +295,7 @@ pub async fn create_book(
     user_id: i32,
 ) -> Result<i32, AppError> {
     let now = Utc::now().naive_utc();
-    
+
     let result = sqlx::query!(
         r#"
         INSERT INTO tbl_books (name, about, scholar_id, image, slug, status, created_by, created_at, updated_at)
@@ -381,7 +382,6 @@ pub async fn check_duplicate_book(
     scholar_id: i32,
     slug_value: &str,
 ) -> Result<Option<String>, AppError> {
-    
     let existing = sqlx::query!(
         r#"
         SELECT name FROM tbl_books 

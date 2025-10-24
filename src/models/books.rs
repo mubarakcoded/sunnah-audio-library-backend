@@ -16,6 +16,7 @@ pub struct BookSearchResult {
     pub id: i32,
     pub name: Option<String>,
     pub image: Option<String>,
+    pub scholar_name: Option<String>,
 }
 
 #[derive(Debug, Serialize)]

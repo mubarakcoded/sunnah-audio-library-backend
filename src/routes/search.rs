@@ -37,7 +37,7 @@ pub async fn full_text_search(
     }
 
     let page = query.page.unwrap_or(1);
-    let per_page = query.per_page.unwrap_or(20);
+    let per_page = query.per_page.unwrap_or(30);
     // Run searches concurrently
 
     let (scholars_res, books_res, files_res) = tokio::join!(
