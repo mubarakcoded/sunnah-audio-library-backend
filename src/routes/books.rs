@@ -183,14 +183,29 @@ pub async fn create_book(
         
         if !field_name.is_empty() {
             if field_name == "image" {
+                tracing::info!("Processing image field for book");
                 let file_ext = cd.get_filename().and_then(|f| std::path::Path::new(f).extension().and_then(|e| e.to_str())).unwrap_or("jpg");
                 let generated = format!("book_{}.{}", Uuid::new_v4(), file_ext);
                 let filepath = format!("{}/{}", images_dir, generated);
+                tracing::info!("Creating book image file at: {}", filepath);
                 let mut f = fs::File::create(&filepath)
-                    .map_err(|e| AppError::internal_error(format!("Failed to create image: {}", e)))?;
+                    .map_err(|e| {
+                        tracing::error!("Failed to create book image file: {:?}", e);
+                        AppError::internal_error(format!("Failed to create image: {}", e))
+                    })?;
                 while let Some(chunk) = field.try_next().await.map_err(|e| AppError::internal_error(format!("Failed to read image: {}", e)))? {
-                    f.write_all(&chunk).map_err(|e| AppError::internal_error(format!("Failed to write image: {}", e)))?;
+                    f.write_all(&chunk).map_err(|e| {
+                        tracing::error!("Failed to write chunk to book image: {:?}", e);
+                        AppError::internal_error(format!("Failed to write image: {}", e))
+                    })?;
                 }
+                // Explicitly flush and sync to ensure data is written
+                f.flush().map_err(|e| {
+                    tracing::error!("Failed to flush book image file: {:?}", e);
+                    AppError::internal_error(format!("Failed to flush image: {}", e))
+                })?;
+                drop(f); // Explicitly close the file
+                tracing::info!("Successfully wrote book image: {}", generated);
                 image_filename = Some(generated);
             } else if field_name == "name" {
                 let bytes = field.try_next().await.map_err(|e| AppError::bad_request(format!("Invalid name: {}", e)))?.unwrap_or_default();
