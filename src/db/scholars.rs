@@ -239,7 +239,7 @@ pub async fn get_scholar_statistics(
         FROM tbl_download_logs dl
         JOIN tbl_files f ON dl.file_id = f.id
         JOIN tbl_books b ON f.book = b.id
-        WHERE b.scholar_id = ?
+        WHERE b.scholar_id = ? AND f.status = 'active' AND b.status = 'active'
         "#,
         scholar_id
     )
@@ -254,7 +254,7 @@ pub async fn get_scholar_statistics(
         FROM tbl_play_history ph
         JOIN tbl_files f ON ph.file_id = f.id
         JOIN tbl_books b ON f.book = b.id
-        WHERE b.scholar_id = ?
+        WHERE b.scholar_id = ? AND f.status = 'active' AND b.status = 'active'
         "#,
         scholar_id
     )
@@ -269,7 +269,7 @@ pub async fn get_scholar_statistics(
         FROM tbl_file_likes fl
         JOIN tbl_files f ON fl.file_id = f.id
         JOIN tbl_books b ON f.book = b.id
-        WHERE b.scholar_id = ?
+        WHERE b.scholar_id = ? AND f.status = 'active' AND b.status = 'active'
         "#,
         scholar_id
     )
