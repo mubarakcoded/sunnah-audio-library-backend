@@ -492,3 +492,21 @@ pub async fn check_duplicate_scholar(
 
     Ok(existing.map(|s| s.name))
 }
+pub async
+ fn delete_scholar(
+    pool: &MySqlPool,
+    scholar_id: i32,
+) -> Result<(), AppError> {
+    let now = Utc::now().naive_utc();
+
+    sqlx::query!(
+        "UPDATE tbl_scholars SET status = 'inactive', updated_at = ? WHERE id = ?",
+        now,
+        scholar_id
+    )
+    .execute(pool)
+    .await
+    .map_err(AppError::db_error)?;
+
+    Ok(())
+}

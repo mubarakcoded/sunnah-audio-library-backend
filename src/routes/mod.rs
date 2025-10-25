@@ -2,14 +2,14 @@ use actix_files as fs;
 
 use actix_web::web::{scope, ServiceConfig};
 use actix_web::Scope;
-use books::{get_book_details, get_book_statistics, get_books_by_scholar, get_books_dropdown, create_book, update_book};
+use books::{get_book_details, get_book_statistics, get_books_by_scholar, get_books_dropdown, create_book, update_book, delete_book};
 use file_interactions::{
     check_file_like_status, create_comment, delete_comment, get_file_comments,
     get_file_download_stats, get_file_likes, get_my_download_history, get_pending_reports,
     like_file, report_file, resolve_report, unlike_file, update_comment,
 };
 use files::{
-    get_all_files_for_play_all, get_files_by_book, get_recent_files, get_related_files, view_file, update_file,
+    get_all_files_for_play_all, get_files_by_book, get_recent_files, get_related_files, view_file, update_file, delete_file,
 };
 use follows::{
     check_follow_status, follow_scholar, get_my_followed_scholars, unfollow_scholar,
@@ -25,7 +25,7 @@ use playlists::{
     get_playlist_files, get_public_playlists, remove_file_from_playlist, update_playlist,
 };
 use related_files::get_file_suggestions;
-use scholars::{get_scholar_details, get_scholar_statistics, get_scholars, get_scholars_by_state, get_scholars_dropdown, create_scholar, update_scholar};
+use scholars::{get_scholar_details, get_scholar_statistics, get_scholars, get_scholars_by_state, get_scholars_dropdown, create_scholar, update_scholar, delete_scholar};
 use search::full_text_search;
 use states::get_states;
 use subscriptions::{
@@ -77,6 +77,7 @@ fn books_routes() -> Scope {
         .service(get_books_dropdown)
         .service(create_book)
         .service(update_book)
+        .service(delete_book)
 }
 
 fn files_routes() -> Scope {
@@ -87,6 +88,7 @@ fn files_routes() -> Scope {
         .service(get_file_suggestions) // New endpoint for next/previous suggestions
         .service(download_file)
         .service(update_file)
+        .service(delete_file)
         // file_interactions_routes
         .service(report_file)
         .service(get_pending_reports)
@@ -132,6 +134,7 @@ fn scholars_routes() -> Scope {
         .service(get_scholars_dropdown)
         .service(create_scholar)
         .service(update_scholar)
+        .service(delete_scholar)
         // follow routes
         .service(follow_scholar)
         .service(unfollow_scholar)

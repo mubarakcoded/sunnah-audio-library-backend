@@ -407,3 +407,21 @@ pub async fn check_duplicate_book(
 
     Ok(existing.map(|b| b.name))
 }
+
+pub async fn delete_book(
+    pool: &MySqlPool,
+    book_id: i32,
+) -> Result<(), AppError> {
+    let now = Utc::now().naive_utc();
+
+    sqlx::query!(
+        "UPDATE tbl_books SET status = 'inactive', updated_at = ? WHERE id = ?",
+        now,
+        book_id
+    )
+    .execute(pool)
+    .await
+    .map_err(AppError::db_error)?;
+
+    Ok(())
+}

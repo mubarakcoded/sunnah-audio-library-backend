@@ -1,7 +1,12 @@
 use crate::{
-    core::{jwt_auth::JwtMiddleware, slugify, AppConfig, AppError, AppErrorType, AppSuccessResponse},
+    core::{
+        jwt_auth::JwtMiddleware, slugify, AppConfig, AppError, AppErrorType, AppSuccessResponse,
+    },
     db::books,
-    models::{books::{CreateBookRequest, UpdateBookRequest}, pagination::{PaginationMeta, PaginationQuery}},
+    models::{
+        books::{CreateBookRequest, UpdateBookRequest},
+        pagination::{PaginationMeta, PaginationQuery},
+    },
 };
 use actix_multipart::Multipart;
 use actix_web::{
@@ -44,11 +49,7 @@ pub async fn get_books_by_scholar(
         }
     })?;
 
-    let pagination_meta = PaginationMeta::new(
-        pagination.page,
-        pagination.per_page,
-        total_items,
-    );
+    let pagination_meta = PaginationMeta::new(pagination.page, pagination.per_page, total_items);
 
     Ok(HttpResponse::Ok().json(AppSuccessResponse {
         success: true,
@@ -82,7 +83,7 @@ pub async fn get_book_details(
                     message: Some("Failed to fetch book details".to_string()),
                     cause: Some(e.to_string()),
                     error_type: AppErrorType::InternalServerError,
-                }
+                },
             }
         })?;
 
@@ -119,8 +120,8 @@ pub async fn get_book_statistics(
         data: Some(statistics),
         pagination: None,
     }))
-}#[
-instrument(name = "Get Books Dropdown", skip(pool))]
+}
+#[instrument(name = "Get Books Dropdown", skip(pool))]
 #[get("/dropdown")]
 pub async fn get_books_dropdown(
     pool: web::Data<MySqlPool>,
@@ -177,23 +178,33 @@ pub async fn create_book(
     fs::create_dir_all(images_dir).ok();
 
     let mut payload = payload;
-    while let Some(mut field) = payload.try_next().await.map_err(|e| AppError::bad_request(format!("Invalid multipart: {}", e)))? {
+    while let Some(mut field) = payload
+        .try_next()
+        .await
+        .map_err(|e| AppError::bad_request(format!("Invalid multipart: {}", e)))?
+    {
         let cd = field.content_disposition();
         let field_name = cd.get_name().unwrap_or("").to_string();
-        
+
         if !field_name.is_empty() {
             if field_name == "image" {
                 tracing::info!("Processing image field for book");
-                let file_ext = cd.get_filename().and_then(|f| std::path::Path::new(f).extension().and_then(|e| e.to_str())).unwrap_or("jpg");
+                let file_ext = cd
+                    .get_filename()
+                    .and_then(|f| std::path::Path::new(f).extension().and_then(|e| e.to_str()))
+                    .unwrap_or("jpg");
                 let generated = format!("book_{}.{}", Uuid::new_v4(), file_ext);
                 let filepath = format!("{}/{}", images_dir, generated);
                 tracing::info!("Creating book image file at: {}", filepath);
-                let mut f = fs::File::create(&filepath)
-                    .map_err(|e| {
-                        tracing::error!("Failed to create book image file: {:?}", e);
-                        AppError::internal_error(format!("Failed to create image: {}", e))
-                    })?;
-                while let Some(chunk) = field.try_next().await.map_err(|e| AppError::internal_error(format!("Failed to read image: {}", e)))? {
+                let mut f = fs::File::create(&filepath).map_err(|e| {
+                    tracing::error!("Failed to create book image file: {:?}", e);
+                    AppError::internal_error(format!("Failed to create image: {}", e))
+                })?;
+                while let Some(chunk) = field
+                    .try_next()
+                    .await
+                    .map_err(|e| AppError::internal_error(format!("Failed to read image: {}", e)))?
+                {
                     f.write_all(&chunk).map_err(|e| {
                         tracing::error!("Failed to write chunk to book image: {:?}", e);
                         AppError::internal_error(format!("Failed to write image: {}", e))
@@ -208,36 +219,63 @@ pub async fn create_book(
                 tracing::info!("Successfully wrote book image: {}", generated);
                 image_filename = Some(generated);
             } else if field_name == "name" {
-                let bytes = field.try_next().await.map_err(|e| AppError::bad_request(format!("Invalid name: {}", e)))?.unwrap_or_default();
+                let bytes = field
+                    .try_next()
+                    .await
+                    .map_err(|e| AppError::bad_request(format!("Invalid name: {}", e)))?
+                    .unwrap_or_default();
                 name = Some(String::from_utf8(bytes.to_vec()).unwrap_or_default());
             } else if field_name == "about" {
-                let bytes = field.try_next().await.map_err(|e| AppError::bad_request(format!("Invalid about: {}", e)))?.unwrap_or_default();
+                let bytes = field
+                    .try_next()
+                    .await
+                    .map_err(|e| AppError::bad_request(format!("Invalid about: {}", e)))?
+                    .unwrap_or_default();
                 about = Some(String::from_utf8(bytes.to_vec()).unwrap_or_default());
             } else if field_name == "scholar_id" {
-                let bytes = field.try_next().await.map_err(|e| AppError::bad_request(format!("Invalid scholar_id: {}", e)))?.unwrap_or_default();
-                scholar_id_field = String::from_utf8(bytes.to_vec()).ok().and_then(|s| s.parse::<i32>().ok());
+                let bytes = field
+                    .try_next()
+                    .await
+                    .map_err(|e| AppError::bad_request(format!("Invalid scholar_id: {}", e)))?
+                    .unwrap_or_default();
+                scholar_id_field = String::from_utf8(bytes.to_vec())
+                    .ok()
+                    .and_then(|s| s.parse::<i32>().ok());
             }
         }
     }
 
     let book_name = name.ok_or_else(|| AppError::bad_request("name is required"))?;
-    let book_scholar_id = scholar_id_field.ok_or_else(|| AppError::bad_request("scholar_id is required"))?;
+    let book_scholar_id =
+        scholar_id_field.ok_or_else(|| AppError::bad_request("scholar_id is required"))?;
     let slug_value = slugify(&book_name);
 
     // After parsing, validate permission with actual scholar_id
     if user.role != "admin" {
-        let sid = scholar_id_field.ok_or_else(|| AppError::bad_request("scholar_id is required"))?;
-        let has_access = crate::db::access::check_user_access_to_scholar(
-            pool.get_ref(), auth.user_id, sid
-        )
-        .await
-        .map_err(|e| AppError::internal_error(format!("Failed to verify permissions: {}", e)))?;
-        if !has_access { return Err(AppError::forbidden_error("You don't have permission to create books for this scholar")); }
+        let sid =
+            scholar_id_field.ok_or_else(|| AppError::bad_request("scholar_id is required"))?;
+        let has_access =
+            crate::db::access::check_user_access_to_scholar(pool.get_ref(), auth.user_id, sid)
+                .await
+                .map_err(|e| {
+                    AppError::internal_error(format!("Failed to verify permissions: {}", e))
+                })?;
+        if !has_access {
+            return Err(AppError::forbidden_error(
+                "You don't have permission to create books for this scholar",
+            ));
+        }
     }
 
-    if let Some(existing_name) = books::check_duplicate_book(pool.get_ref(), &book_name, book_scholar_id, &slug_value).await? {
+    if let Some(existing_name) =
+        books::check_duplicate_book(pool.get_ref(), &book_name, book_scholar_id, &slug_value)
+            .await?
+    {
         return Err(AppError {
-            message: Some(format!("A book with the name '{}' already exists for this scholar", existing_name)),
+            message: Some(format!(
+                "A book with the name '{}' already exists for this scholar",
+                existing_name
+            )),
             cause: None,
             error_type: AppErrorType::ConflictError,
         });
@@ -320,29 +358,57 @@ pub async fn update_book(
     fs::create_dir_all(images_dir).ok();
 
     let mut payload = payload;
-    while let Some(mut field) = payload.try_next().await.map_err(|e| AppError::bad_request(format!("Invalid multipart: {}", e)))? {
+    while let Some(mut field) = payload
+        .try_next()
+        .await
+        .map_err(|e| AppError::bad_request(format!("Invalid multipart: {}", e)))?
+    {
         let cd = field.content_disposition();
         let field_name = cd.get_name().unwrap_or("").to_string();
         if !field_name.is_empty() {
             if field_name == "image" {
-                let file_ext = cd.get_filename().and_then(|f| std::path::Path::new(f).extension().and_then(|e| e.to_str())).unwrap_or("jpg");
+                let file_ext = cd
+                    .get_filename()
+                    .and_then(|f| std::path::Path::new(f).extension().and_then(|e| e.to_str()))
+                    .unwrap_or("jpg");
                 let generated = format!("book_{}.{}", Uuid::new_v4(), file_ext);
                 let filepath = format!("{}/{}", images_dir, generated);
-                let mut f = fs::File::create(&filepath)
-                    .map_err(|e| AppError::internal_error(format!("Failed to create image: {}", e)))?;
-                while let Some(chunk) = field.try_next().await.map_err(|e| AppError::internal_error(format!("Failed to read image: {}", e)))? {
-                    f.write_all(&chunk).map_err(|e| AppError::internal_error(format!("Failed to write image: {}", e)))?;
+                let mut f = fs::File::create(&filepath).map_err(|e| {
+                    AppError::internal_error(format!("Failed to create image: {}", e))
+                })?;
+                while let Some(chunk) = field
+                    .try_next()
+                    .await
+                    .map_err(|e| AppError::internal_error(format!("Failed to read image: {}", e)))?
+                {
+                    f.write_all(&chunk).map_err(|e| {
+                        AppError::internal_error(format!("Failed to write image: {}", e))
+                    })?;
                 }
                 image_filename = Some(generated);
             } else if field_name == "name" {
-                let bytes = field.try_next().await.map_err(|e| AppError::bad_request(format!("Invalid name: {}", e)))?.unwrap_or_default();
+                let bytes = field
+                    .try_next()
+                    .await
+                    .map_err(|e| AppError::bad_request(format!("Invalid name: {}", e)))?
+                    .unwrap_or_default();
                 name = Some(String::from_utf8(bytes.to_vec()).unwrap_or_default());
             } else if field_name == "about" {
-                let bytes = field.try_next().await.map_err(|e| AppError::bad_request(format!("Invalid about: {}", e)))?.unwrap_or_default();
+                let bytes = field
+                    .try_next()
+                    .await
+                    .map_err(|e| AppError::bad_request(format!("Invalid about: {}", e)))?
+                    .unwrap_or_default();
                 about = Some(String::from_utf8(bytes.to_vec()).unwrap_or_default());
             } else if field_name == "scholar_id" {
-                let bytes = field.try_next().await.map_err(|e| AppError::bad_request(format!("Invalid scholar_id: {}", e)))?.unwrap_or_default();
-                scholar_id = String::from_utf8(bytes.to_vec()).ok().and_then(|s| s.parse::<i32>().ok());
+                let bytes = field
+                    .try_next()
+                    .await
+                    .map_err(|e| AppError::bad_request(format!("Invalid scholar_id: {}", e)))?
+                    .unwrap_or_default();
+                scholar_id = String::from_utf8(bytes.to_vec())
+                    .ok()
+                    .and_then(|s| s.parse::<i32>().ok());
             }
         }
     }
@@ -351,30 +417,45 @@ pub async fn update_book(
     if user.role != "admin" {
         // Must have access to current scholar
         let has_access = crate::db::access::check_user_access_to_scholar(
-            pool.get_ref(), auth.user_id, current_book.scholar_id
+            pool.get_ref(),
+            auth.user_id,
+            current_book.scholar_id,
         )
         .await
         .map_err(|e| AppError::internal_error(format!("Failed to verify permissions: {}", e)))?;
         if !has_access {
-            return Err(AppError::forbidden_error("You don't have permission to update this book"));
+            return Err(AppError::forbidden_error(
+                "You don't have permission to update this book",
+            ));
         }
 
         // If moving to a different scholar, must have access there too
         if let Some(new_scholar_id) = scholar_id {
             if new_scholar_id != current_book.scholar_id {
                 let has_new_access = crate::db::access::check_user_access_to_scholar(
-                    pool.get_ref(), auth.user_id, new_scholar_id
+                    pool.get_ref(),
+                    auth.user_id,
+                    new_scholar_id,
                 )
                 .await
-                .map_err(|e| AppError::internal_error(format!("Failed to verify permissions: {}", e)))?;
+                .map_err(|e| {
+                    AppError::internal_error(format!("Failed to verify permissions: {}", e))
+                })?;
                 if !has_new_access {
-                    return Err(AppError::forbidden_error("You don't have permission to move this book to the specified scholar"));
+                    return Err(AppError::forbidden_error(
+                        "You don't have permission to move this book to the specified scholar",
+                    ));
                 }
             }
         }
     }
 
-    let request = UpdateBookRequest { name, about, scholar_id, image: image_filename };
+    let request = UpdateBookRequest {
+        name,
+        about,
+        scholar_id,
+        image: image_filename,
+    };
 
     books::update_book(pool.get_ref(), book_id, &request)
         .await
@@ -388,12 +469,85 @@ pub async fn update_book(
         })?;
 
     // Fetch the updated book details
-    let updated_book = books::get_book_details(pool.get_ref(), &config, book_id, Some(auth.user_id))
+    let updated_book =
+        books::get_book_details(pool.get_ref(), &config, book_id, Some(auth.user_id))
+            .await
+            .map_err(|e| {
+                tracing::error!("Failed to fetch updated book: {:?}", e);
+                AppError {
+                    message: Some("Book updated but failed to fetch details".to_string()),
+                    cause: Some(e.to_string()),
+                    error_type: AppErrorType::InternalServerError,
+                }
+            })?;
+
+    Ok(HttpResponse::Ok().json(AppSuccessResponse {
+        success: true,
+        message: "Book updated successfully".to_string(),
+        data: Some(updated_book),
+        pagination: None,
+    }))
+}
+
+#[instrument(name = "Delete Book", skip(pool, auth))]
+#[actix_web::delete("/{book_id}")]
+pub async fn delete_book(
+    pool: web::Data<MySqlPool>,
+    auth: JwtMiddleware,
+    book_id: web::Path<i32>,
+) -> Result<impl Responder, AppError> {
+    let book_id = book_id.into_inner();
+
+    // Get current book to check scholar_id
+    let current_book = sqlx::query!(
+        "SELECT scholar_id FROM tbl_books WHERE id = ? AND status = 'active'",
+        book_id
+    )
+    .fetch_one(pool.get_ref())
+    .await
+    .map_err(|e| {
+        tracing::error!("Failed to get book: {:?}", e);
+        AppError {
+            message: Some("Book not found".to_string()),
+            cause: Some(e.to_string()),
+            error_type: AppErrorType::NotFoundError,
+        }
+    })?;
+
+    // Check if user has access to delete this book
+    let user = crate::db::users::get_user_by_id(pool.get_ref(), auth.user_id)
         .await
         .map_err(|e| {
-            tracing::error!("Failed to fetch updated book: {:?}", e);
+            tracing::error!("Failed to get user: {:?}", e);
             AppError {
-                message: Some("Book updated but failed to fetch details".to_string()),
+                message: Some("User not found".to_string()),
+                cause: Some(e.to_string()),
+                error_type: AppErrorType::NotFoundError,
+            }
+        })?;
+
+    // Permission check
+    if user.role != "admin" {
+        let has_access = crate::db::access::check_user_access_to_scholar(
+            pool.get_ref(),
+            auth.user_id,
+            current_book.scholar_id,
+        )
+        .await
+        .map_err(|e| AppError::internal_error(format!("Failed to verify permissions: {}", e)))?;
+        if !has_access {
+            return Err(AppError::forbidden_error(
+                "You don't have permission to delete this book",
+            ));
+        }
+    }
+
+    books::delete_book(pool.get_ref(), book_id)
+        .await
+        .map_err(|e| {
+            tracing::error!("Failed to delete book: {:?}", e);
+            AppError {
+                message: Some("Failed to delete book".to_string()),
                 cause: Some(e.to_string()),
                 error_type: AppErrorType::InternalServerError,
             }
@@ -401,8 +555,8 @@ pub async fn update_book(
 
     Ok(HttpResponse::Ok().json(AppSuccessResponse {
         success: true,
-        message: "Book updated successfully".to_string(),
-        data: Some(updated_book),
+        message: "Book deleted successfully".to_string(),
+        data: None::<()>,
         pagination: None,
     }))
 }

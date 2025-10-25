@@ -678,7 +678,7 @@ pub async fn update_file(
 pub async fn check_file_owner_or_admin(
     pool: &MySqlPool,
     user_id: i32,
-    _file_id: i32,
+    file_id: i32,
 ) -> Result<bool, AppError> {
     // First check if user is admin
     let user_role = sqlx::query_scalar!("SELECT role FROM tbl_users WHERE id = ?", user_id)
@@ -690,7 +690,36 @@ pub async fn check_file_owner_or_admin(
         return Ok(true);
     }
 
-    // For now, since uploaded_by column doesn't exist, only allow admins
-    // In production, you should add uploaded_by column to track file ownership
+    // Check if user is the file owner (created_by)
+    let file_owner = sqlx::query_scalar!(
+        "SELECT created_by FROM tbl_files WHERE id = ? AND status = 'active'",
+        file_id
+    )
+    .fetch_optional(pool)
+    .await
+    .map_err(AppError::db_error)?;
+
+    if let Some(owner_id) = file_owner {
+        return Ok(owner_id == user_id);
+    }
+
     Ok(false)
+}
+
+pub async fn delete_file(
+    pool: &MySqlPool,
+    file_id: i32,
+) -> Result<(), AppError> {
+    let now = chrono::Utc::now().naive_utc();
+
+    sqlx::query!(
+        "UPDATE tbl_files SET status = 'inactive', updated_at = ? WHERE id = ?",
+        now,
+        file_id
+    )
+    .execute(pool)
+    .await
+    .map_err(AppError::db_error)?;
+
+    Ok(())
 }

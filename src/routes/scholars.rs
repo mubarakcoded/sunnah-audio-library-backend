@@ -395,3 +395,51 @@ pub async fn update_scholar(
         pagination: None,
     }))
 }
+
+#[instrument(name = "Delete Scholar", skip(pool, auth))]
+#[actix_web::delete("/{scholar_id}")]
+pub async fn delete_scholar(
+    pool: web::Data<MySqlPool>,
+    auth: JwtMiddleware,
+    scholar_id: web::Path<i32>,
+) -> Result<impl Responder, AppError> {
+    let scholar_id = scholar_id.into_inner();
+
+    // Check if user is admin
+    let user = crate::db::users::get_user_by_id(pool.get_ref(), auth.user_id)
+        .await
+        .map_err(|e| {
+            tracing::error!("Failed to get user: {:?}", e);
+            AppError {
+                message: Some("User not found".to_string()),
+                cause: Some(e.to_string()),
+                error_type: AppErrorType::NotFoundError,
+            }
+        })?;
+
+    if user.role != "admin" {
+        return Err(AppError {
+            message: Some("Only admins can delete scholars".to_string()),
+            cause: None,
+            error_type: AppErrorType::ForbiddenError,
+        });
+    }
+
+    scholars::delete_scholar(pool.get_ref(), scholar_id)
+        .await
+        .map_err(|e| {
+            tracing::error!("Failed to delete scholar: {:?}", e);
+            AppError {
+                message: Some("Failed to delete scholar".to_string()),
+                cause: Some(e.to_string()),
+                error_type: AppErrorType::InternalServerError,
+            }
+        })?;
+
+    Ok(HttpResponse::Ok().json(AppSuccessResponse {
+        success: true,
+        message: "Scholar deleted successfully".to_string(),
+        data: None::<()>,
+        pagination: None,
+    }))
+}

@@ -1,16 +1,19 @@
 use actix_web::{
     get, put,
     web::{self},
-    HttpResponse, Responder, HttpRequest,
+    HttpRequest, HttpResponse, Responder,
 };
 use sqlx::MySqlPool;
 use tracing::instrument;
 
 use crate::{
-    core::{AppError, AppErrorType, AppSuccessResponse, AppConfig, extract_user_id_from_request, jwt_auth::JwtMiddleware},
+    core::{
+        extract_user_id_from_request, jwt_auth::JwtMiddleware, AppConfig, AppError, AppErrorType,
+        AppSuccessResponse,
+    },
     db::files,
-    models::pagination::{PaginationMeta, PaginationQuery},
     models::files::UpdateFileRequest,
+    models::pagination::{PaginationMeta, PaginationQuery},
 };
 
 #[instrument(name = "Get Files by Book", skip(pool, config))]
@@ -177,7 +180,7 @@ pub async fn get_all_files_for_play_all(
                     message: Some("Failed to fetch files for play all".to_string()),
                     cause: Some(e.to_string()),
                     error_type: AppErrorType::InternalServerError,
-                }
+                },
             }
         })?;
 
@@ -187,8 +190,8 @@ pub async fn get_all_files_for_play_all(
         data: Some(play_all_data),
         pagination: None,
     }))
-}#
-[instrument(name = "Update File", skip(pool, auth))]
+}
+#[instrument(name = "Update File", skip(pool, auth))]
 #[put("/{file_id}")]
 pub async fn update_file(
     pool: web::Data<MySqlPool>,
@@ -230,8 +233,6 @@ pub async fn update_file(
     //     }
     // }
 
- 
-
     // If changing book, check if user has access to the new book's scholar
     if let Some(new_book_id) = request.book_id {
         if user.role != "admin" {
@@ -252,9 +253,9 @@ pub async fn update_file(
             })?;
 
             let has_access = crate::db::access::check_user_access_to_scholar(
-                pool.get_ref(), 
-                auth.user_id, 
-                scholar_id
+                pool.get_ref(),
+                auth.user_id,
+                scholar_id,
             )
             .await
             .map_err(|e| {
@@ -268,7 +269,10 @@ pub async fn update_file(
 
             if !has_access {
                 return Err(AppError {
-                    message: Some("You don't have permission to move this file to the specified book".to_string()),
+                    message: Some(
+                        "You don't have permission to move this file to the specified book"
+                            .to_string(),
+                    ),
                     cause: None,
                     error_type: AppErrorType::ForbiddenError,
                 });
@@ -282,7 +286,7 @@ pub async fn update_file(
             let has_access = crate::db::access::check_user_access_to_scholar(
                 pool.get_ref(),
                 auth.user_id,
-                new_scholar_id
+                new_scholar_id,
             )
             .await
             .map_err(|e| {
@@ -296,7 +300,10 @@ pub async fn update_file(
 
             if !has_access {
                 return Err(AppError {
-                    message: Some("You don't have permission to assign this file to the specified scholar".to_string()),
+                    message: Some(
+                        "You don't have permission to assign this file to the specified scholar"
+                            .to_string(),
+                    ),
                     cause: None,
                     error_type: AppErrorType::ForbiddenError,
                 });
@@ -318,6 +325,54 @@ pub async fn update_file(
     Ok(HttpResponse::Ok().json(AppSuccessResponse {
         success: true,
         message: "File updated successfully".to_string(),
+        data: None::<()>,
+        pagination: None,
+    }))
+}
+
+#[instrument(name = "Delete File", skip(pool, auth))]
+#[actix_web::delete("/{file_id}")]
+pub async fn delete_file(
+    pool: web::Data<MySqlPool>,
+    auth: JwtMiddleware,
+    file_id: web::Path<i32>,
+) -> Result<impl Responder, AppError> {
+    let file_id = file_id.into_inner();
+
+    // Check if user has permission to delete this file
+    let has_permission = files::check_file_owner_or_admin(pool.get_ref(), auth.user_id, file_id)
+        .await
+        .map_err(|e| {
+            tracing::error!("Failed to check file permissions: {:?}", e);
+            AppError {
+                message: Some("Failed to check permissions".to_string()),
+                cause: Some(e.to_string()),
+                error_type: AppErrorType::InternalServerError,
+            }
+        })?;
+
+    if !has_permission {
+        return Err(AppError {
+            message: Some("You don't have permission to delete this file".to_string()),
+            cause: None,
+            error_type: AppErrorType::ForbiddenError,
+        });
+    }
+
+    files::delete_file(pool.get_ref(), file_id)
+        .await
+        .map_err(|e| {
+            tracing::error!("Failed to delete file: {:?}", e);
+            AppError {
+                message: Some("Failed to delete file".to_string()),
+                cause: Some(e.to_string()),
+                error_type: AppErrorType::InternalServerError,
+            }
+        })?;
+
+    Ok(HttpResponse::Ok().json(AppSuccessResponse {
+        success: true,
+        message: "File deleted successfully".to_string(),
         data: None::<()>,
         pagination: None,
     }))
