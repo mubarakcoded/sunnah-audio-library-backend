@@ -387,10 +387,22 @@ pub async fn update_book(
             }
         })?;
 
+    // Fetch the updated book details
+    let updated_book = books::get_book_details(pool.get_ref(), &config, book_id, Some(auth.user_id))
+        .await
+        .map_err(|e| {
+            tracing::error!("Failed to fetch updated book: {:?}", e);
+            AppError {
+                message: Some("Book updated but failed to fetch details".to_string()),
+                cause: Some(e.to_string()),
+                error_type: AppErrorType::InternalServerError,
+            }
+        })?;
+
     Ok(HttpResponse::Ok().json(AppSuccessResponse {
         success: true,
         message: "Book updated successfully".to_string(),
-        data: None::<()>,
+        data: Some(updated_book),
         pagination: None,
     }))
 }
