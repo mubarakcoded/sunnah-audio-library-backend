@@ -29,6 +29,7 @@ pub struct FilesWithStats {
     pub scholar_name: String,
     pub scholar_image: String,
     pub date: DateTime<Local>,
+    pub uploaded_by: i32,
     pub statistics: FileStatistics,
 }
 

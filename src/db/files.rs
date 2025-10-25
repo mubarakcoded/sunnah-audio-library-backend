@@ -388,6 +388,7 @@ pub async fn fetch_files_by_book_with_stats(
             f.date,
             f.downloads,
             f.location,
+            f.created_by,
             s.id as scholar_id,
             s.name as scholar_name,
             s.image as scholar_image
@@ -427,6 +428,7 @@ pub async fn fetch_files_by_book_with_stats(
             scholar_name: row.scholar_name,
             scholar_image: config.get_image_url(&row.scholar_image),
             date: row.date.into(),
+            uploaded_by: row.created_by,
             statistics,
         });
     }
