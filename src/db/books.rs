@@ -182,7 +182,7 @@ pub async fn get_book_statistics(
         SELECT COUNT(*) 
         FROM tbl_download_logs dl
         JOIN tbl_files f ON dl.file_id = f.id
-        WHERE f.book = ?
+        WHERE f.book = ? AND f.status = 'active'
         "#,
         book_id
     )
@@ -196,7 +196,7 @@ pub async fn get_book_statistics(
         SELECT COUNT(*) 
         FROM tbl_play_history ph
         JOIN tbl_files f ON ph.file_id = f.id
-        WHERE f.book = ?
+        WHERE f.book = ? AND f.status = 'active'
         "#,
         book_id
     )
@@ -210,7 +210,7 @@ pub async fn get_book_statistics(
         SELECT COUNT(*) 
         FROM tbl_file_likes fl
         JOIN tbl_files f ON fl.file_id = f.id
-        WHERE f.book = ?
+        WHERE f.book = ? AND f.status = 'active'
         "#,
         book_id
     )
