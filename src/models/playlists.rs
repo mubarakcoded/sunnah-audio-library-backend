@@ -75,7 +75,10 @@ pub struct PlaylistResponse {
 pub struct PlaylistFileResponse {
     pub file_id: i32,
     pub file_title: String,
+    pub file_url: String,
     pub scholar_name: Option<String>,
+    pub scholar_image: Option<String>,
+    pub book_image: Option<String>,
     pub duration: String,
     pub sort_order: i32,
     pub added_at: NaiveDateTime,

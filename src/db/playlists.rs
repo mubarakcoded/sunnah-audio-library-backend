@@ -312,16 +312,19 @@ pub async fn remove_file_from_playlist(
 // Get playlist files
 pub async fn get_playlist_files(
     pool: &MySqlPool,
+    config: &crate::core::AppConfig,
     playlist_id: i32,
 ) -> Result<Vec<PlaylistFileResponse>, AppError> {
     let rows = sqlx::query!(
         r#"
         SELECT 
-            pf.file_id, f.name as file_title, s.name as scholar_name,
+            pf.file_id, f.name as file_title, f.location, s.name as scholar_name,
+            s.image as scholar_image, b.image as book_image,
             f.duration, pf.sort_order, pf.created_at as added_at
         FROM tbl_playlist_files pf
         JOIN tbl_files f ON pf.file_id = f.id
         LEFT JOIN tbl_scholars s ON f.scholar = s.id
+        LEFT JOIN tbl_books b ON f.book = b.id
         WHERE pf.playlist_id = ?
         ORDER BY pf.sort_order ASC, pf.created_at ASC
         "#,
@@ -336,7 +339,10 @@ pub async fn get_playlist_files(
         .map(|row| PlaylistFileResponse {
             file_id: row.file_id,
             file_title: row.file_title,
-            scholar_name: row.scholar_name,
+            file_url: config.get_upload_url(&row.location),
+            scholar_name: row.scholar_name.clone(),
+            scholar_image: row.scholar_image.map(|img| config.get_image_url(&img)),
+            book_image: row.book_image.map(|img| config.get_image_url(&img)),
             duration: row.duration,
             sort_order: row.sort_order.unwrap_or(0),
             added_at: row.added_at.naive_utc(),
@@ -371,24 +377,68 @@ async fn get_playlist_file_by_id(
 async fn update_playlist_stats(pool: &MySqlPool, playlist_id: i32) -> Result<(), AppError> {
     let now = Utc::now().naive_utc();
 
+    // Get the count of files
+    let total_files: i64 = sqlx::query_scalar!(
+        "SELECT COUNT(*) FROM tbl_playlist_files WHERE playlist_id = ?",
+        playlist_id
+    )
+    .fetch_one(pool)
+    .await
+    .map_err(AppError::db_error)?;
+
+    // Get all file durations to calculate total
+    let durations = sqlx::query_scalar!(
+        r#"
+        SELECT f.duration 
+        FROM tbl_playlist_files pf 
+        JOIN tbl_files f ON pf.file_id = f.id 
+        WHERE pf.playlist_id = ?
+        "#,
+        playlist_id
+    )
+    .fetch_all(pool)
+    .await
+    .map_err(AppError::db_error)?;
+
+    // Calculate total duration in seconds from duration strings
+    let total_duration_seconds = {
+        let mut total_seconds: u32 = 0;
+        for duration_str in &durations {
+            // Parse duration string (e.g., "2:53" or "1:23:45")
+            let parts: Vec<&str> = duration_str.split(':').collect();
+            let seconds = match parts.len() {
+                2 => {
+                    // MM:SS format
+                    let minutes: u32 = parts[0].parse().unwrap_or(0);
+                    let secs: u32 = parts[1].parse().unwrap_or(0);
+                    minutes * 60 + secs
+                }
+                3 => {
+                    // HH:MM:SS format
+                    let hours: u32 = parts[0].parse().unwrap_or(0);
+                    let minutes: u32 = parts[1].parse().unwrap_or(0);
+                    let secs: u32 = parts[2].parse().unwrap_or(0);
+                    hours * 3600 + minutes * 60 + secs
+                }
+                _ => 0,
+            };
+            total_seconds += seconds;
+        }
+        total_seconds as i32
+    };
+
+    // Update playlist stats
     sqlx::query!(
         r#"
         UPDATE tbl_playlists 
         SET 
-            total_files = (
-                SELECT COUNT(*) FROM tbl_playlist_files WHERE playlist_id = ?
-            ),
-            total_duration = (
-                SELECT COALESCE(SUM(f.duration), 0) 
-                FROM tbl_playlist_files pf 
-                JOIN tbl_files f ON pf.file_id = f.id 
-                WHERE pf.playlist_id = ?
-            ),
+            total_files = ?,
+            total_duration = ?,
             updated_at = ?
         WHERE id = ?
         "#,
-        playlist_id,
-        playlist_id,
+        total_files,
+        total_duration_seconds,
         now,
         playlist_id
     )

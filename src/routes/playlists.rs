@@ -1,6 +1,5 @@
 use crate::core::jwt_auth::JwtClaims;
-use crate::core::AppError;
-use crate::core::AppSuccessResponse;
+use crate::core::{AppConfig, AppError, AppSuccessResponse};
 use crate::db::playlists;
 use crate::models::playlists::{CreatePlaylistRequest, UpdatePlaylistRequest, AddToPlaylistRequest};
 use crate::models::pagination::PaginationQuery;
@@ -186,10 +185,11 @@ pub async fn remove_file_from_playlist(
 #[get("/{playlist_id}/files")]
 pub async fn get_playlist_files(
     pool: web::Data<MySqlPool>,
+    config: web::Data<AppConfig>,
     path: web::Path<i32>,
 ) -> Result<HttpResponse, AppError> {
     let playlist_id = path.into_inner();
-    let files = playlists::get_playlist_files(&pool, playlist_id).await?;
+    let files = playlists::get_playlist_files(&pool, &config, playlist_id).await?;
 
     Ok(HttpResponse::Ok().json(AppSuccessResponse {
         success: true,
