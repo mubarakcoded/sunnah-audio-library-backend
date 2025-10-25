@@ -23,6 +23,7 @@ pub struct ScholarDetails {
     pub id: i32,
     pub name: String,
     pub about: Option<String>,
+    pub state_id: i32,
     pub state: String,
     pub image: Option<String>,
     pub created_at: NaiveDateTime,
