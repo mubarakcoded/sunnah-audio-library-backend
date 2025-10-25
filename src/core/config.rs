@@ -2,7 +2,6 @@ use secrecy::{ExposeSecret, Secret};
 use serde::Deserialize;
 
 use sqlx::mysql::MySqlConnectOptions;
-use sqlx::postgres::PgConnectOptions;
 use sqlx::ConnectOptions;
 
 #[derive(Deserialize, Clone, Debug)]
