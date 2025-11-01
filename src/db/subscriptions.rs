@@ -1,11 +1,11 @@
 use crate::core::AppError;
 use crate::models::subscriptions::{
-    SubscriptionPlan, UserSubscription, CreateSubscriptionRequest,
-    VerifySubscriptionRequest, SubscriptionStatus, UserSubscriptionWithPlanSummary,
-    SubscriptionPlanSummary,
+    CreateSubscriptionRequest, SubscriptionPlan, SubscriptionPlanSummary, SubscriptionStatus,
+    UserSubscription, UserSubscriptionWithPlan, UserSubscriptionWithPlanSummary,
+    VerifySubscriptionRequest,
 };
-use sqlx::MySqlPool;
 use chrono::Utc;
+use sqlx::MySqlPool;
 
 // Get all subscription plans
 pub async fn get_all_subscription_plans(
@@ -156,15 +156,21 @@ pub async fn get_user_subscription_by_id(
 pub async fn get_user_subscriptions(
     pool: &MySqlPool,
     user_id: i32,
-) -> Result<Vec<UserSubscription>, AppError> {
+) -> Result<Vec<UserSubscriptionWithPlan>, AppError> {
     let rows = sqlx::query!(
         r#"
-        SELECT id, user_id, subscription_plan_id, status, start_date, end_date,
-               payment_method, transaction_reference, payment_amount, payment_currency,
-               payment_date, notes, created_at, updated_at
-        FROM tbl_user_subscriptions
-        WHERE user_id = ?
-        ORDER BY created_at DESC
+        SELECT 
+            us.id, us.user_id, us.subscription_plan_id, us.status, us.start_date, us.end_date,
+            us.payment_method, us.transaction_reference, us.payment_amount, us.payment_currency,
+            us.payment_date, us.notes, us.created_at, us.updated_at,
+            sp.id as plan_id, sp.name as plan_name, sp.description as plan_description,
+            sp.duration_type, sp.duration_months, sp.price, sp.currency,
+            sp.features, sp.is_active as plan_is_active, sp.sort_order,
+            sp.created_at as plan_created_at, sp.updated_at as plan_updated_at
+        FROM tbl_user_subscriptions us
+        JOIN tbl_subscription_plans sp ON us.subscription_plan_id = sp.id
+        WHERE us.user_id = ?
+        ORDER BY us.created_at DESC
         "#,
         user_id
     )
@@ -174,7 +180,7 @@ pub async fn get_user_subscriptions(
 
     let subscriptions = rows
         .into_iter()
-        .map(|row| UserSubscription {
+        .map(|row| UserSubscriptionWithPlan {
             id: row.id,
             user_id: row.user_id,
             subscription_plan_id: row.subscription_plan_id,
@@ -189,6 +195,20 @@ pub async fn get_user_subscriptions(
             notes: row.notes,
             created_at: row.created_at.naive_utc(),
             updated_at: row.updated_at.naive_utc(),
+            plan: SubscriptionPlan {
+                id: row.plan_id,
+                name: row.plan_name,
+                description: row.plan_description,
+                duration_type: row.duration_type,
+                duration_months: row.duration_months,
+                price: row.price,
+                currency: row.currency,
+                features: row.features,
+                is_active: row.plan_is_active != 0,
+                sort_order: row.sort_order.unwrap_or(0),
+                created_at: row.plan_created_at.naive_utc(),
+                updated_at: row.plan_updated_at.naive_utc(),
+            },
         })
         .collect();
 
@@ -312,7 +332,8 @@ pub async fn verify_user_subscription(
 
         // Calculate start and end dates based on plan duration
         let start_date = chrono::Utc::now().date_naive();
-        let end_date = start_date + chrono::Duration::days(subscription_with_plan.duration_months as i64 * 30);
+        let end_date =
+            start_date + chrono::Duration::days(subscription_with_plan.duration_months as i64 * 30);
 
         sqlx::query!(
             r#"
@@ -398,8 +419,8 @@ pub async fn get_user_subscription_status(
     user_id: i32,
 ) -> Result<SubscriptionStatus, AppError> {
     let active_subscription = get_user_active_subscription_with_plan(pool, user_id).await?;
-    
-    let (has_active_subscription, subscription_expires_at, days_remaining) = 
+
+    let (has_active_subscription, subscription_expires_at, days_remaining) =
         if let Some(ref subscription) = active_subscription {
             let expires_at = subscription.end_date;
             let days_remaining = if let Some(end_date) = expires_at {
