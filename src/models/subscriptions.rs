@@ -98,3 +98,17 @@ pub struct SubscriptionStatus {
     pub subscription_expires_at: Option<NaiveDate>,
     pub days_remaining: Option<i64>,
 }
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct UserSubscriptionMinimal {
+    pub status: String,
+    pub start_date: Option<NaiveDate>,
+    pub end_date: Option<NaiveDate>,
+    pub payment_method: Option<String>,
+    pub transaction_reference: Option<String>,
+    pub payment_amount: BigDecimal,
+    pub payment_date: Option<NaiveDateTime>,
+    pub plan_name: String,
+    pub duration_type: String,
+    pub duration_months: i32,
+}

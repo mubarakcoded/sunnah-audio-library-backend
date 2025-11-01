@@ -1,7 +1,7 @@
 use crate::core::AppError;
 use crate::models::subscriptions::{
     CreateSubscriptionRequest, SubscriptionPlan, SubscriptionPlanSummary, SubscriptionStatus,
-    UserSubscription, UserSubscriptionWithPlan, UserSubscriptionWithPlanSummary,
+    UserSubscription, UserSubscriptionMinimal, UserSubscriptionWithPlanSummary,
     VerifySubscriptionRequest,
 };
 use chrono::Utc;
@@ -156,17 +156,14 @@ pub async fn get_user_subscription_by_id(
 pub async fn get_user_subscriptions(
     pool: &MySqlPool,
     user_id: i32,
-) -> Result<Vec<UserSubscriptionWithPlan>, AppError> {
+) -> Result<Vec<UserSubscriptionMinimal>, AppError> {
     let rows = sqlx::query!(
         r#"
         SELECT 
-            us.id, us.user_id, us.subscription_plan_id, us.status, us.start_date, us.end_date,
-            us.payment_method, us.transaction_reference, us.payment_amount, us.payment_currency,
-            us.payment_date, us.notes, us.created_at, us.updated_at,
-            sp.id as plan_id, sp.name as plan_name, sp.description as plan_description,
-            sp.duration_type, sp.duration_months, sp.price, sp.currency,
-            sp.features, sp.is_active as plan_is_active, sp.sort_order,
-            sp.created_at as plan_created_at, sp.updated_at as plan_updated_at
+            us.status, us.start_date, us.end_date,
+            us.payment_method, us.transaction_reference, us.payment_amount,
+            us.payment_date,
+            sp.name as plan_name, sp.duration_type, sp.duration_months
         FROM tbl_user_subscriptions us
         JOIN tbl_subscription_plans sp ON us.subscription_plan_id = sp.id
         WHERE us.user_id = ?
@@ -180,35 +177,17 @@ pub async fn get_user_subscriptions(
 
     let subscriptions = rows
         .into_iter()
-        .map(|row| UserSubscriptionWithPlan {
-            id: row.id,
-            user_id: row.user_id,
-            subscription_plan_id: row.subscription_plan_id,
+        .map(|row| UserSubscriptionMinimal {
             status: row.status,
             start_date: row.start_date,
             end_date: row.end_date,
             payment_method: row.payment_method,
             transaction_reference: row.transaction_reference,
             payment_amount: row.payment_amount,
-            payment_currency: row.payment_currency,
             payment_date: row.payment_date,
-            notes: row.notes,
-            created_at: row.created_at.naive_utc(),
-            updated_at: row.updated_at.naive_utc(),
-            plan: SubscriptionPlan {
-                id: row.plan_id,
-                name: row.plan_name,
-                description: row.plan_description,
-                duration_type: row.duration_type,
-                duration_months: row.duration_months,
-                price: row.price,
-                currency: row.currency,
-                features: row.features,
-                is_active: row.plan_is_active != 0,
-                sort_order: row.sort_order.unwrap_or(0),
-                created_at: row.plan_created_at.naive_utc(),
-                updated_at: row.plan_updated_at.naive_utc(),
-            },
+            plan_name: row.plan_name,
+            duration_type: row.duration_type,
+            duration_months: row.duration_months,
         })
         .collect();
 
