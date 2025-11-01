@@ -18,6 +18,9 @@ pub async fn fetch_site_settings(pool: &MySqlPool) -> Result<SiteSettings, AppEr
             youtube_url,
             whatsapp_number,
             additional_contacts,
+            bank_name,
+            account_name,
+            account_number,
             created_at,
             updated_at
         FROM tbl_site_settings
@@ -42,6 +45,9 @@ pub async fn fetch_site_settings(pool: &MySqlPool) -> Result<SiteSettings, AppEr
         youtube_url: row.youtube_url,
         whatsapp_number: row.whatsapp_number,
         additional_contacts: row.additional_contacts,
+        bank_name: row.bank_name,
+        account_name: row.account_name,
+        account_number: row.account_number,
         created_at: row.created_at,
         updated_at: row.updated_at,
     })

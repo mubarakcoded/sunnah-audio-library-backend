@@ -15,6 +15,9 @@ pub struct SiteSettings {
     pub youtube_url: Option<String>,
     pub whatsapp_number: Option<String>,
     pub additional_contacts: Option<String>,
+    pub bank_name: Option<String>,
+    pub account_name: Option<String>,
+    pub account_number: Option<String>,
     pub created_at: Option<NaiveDateTime>,
     pub updated_at: Option<NaiveDateTime>,
 }
