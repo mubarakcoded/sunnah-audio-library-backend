@@ -161,7 +161,7 @@ pub async fn get_scholar_details(
     let scholar_row = sqlx::query!(
         r#"
         SELECT 
-            s.id, s.name, s.about, s.state as state_id, s.image, s.created_at, s.updated_at,
+            s.id, s.name, s.about, s.state as state_id, s.image, s.created_at, s.updated_at, s.created_by,
             st.name as state_name
         FROM tbl_scholars s
         JOIN tbl_states st ON s.state = st.id
@@ -199,6 +199,7 @@ pub async fn get_scholar_details(
         image: Some(config.get_image_url(&scholar_row.image)),
         created_at: Utc::now().naive_utc(), // Using current time as placeholder
         updated_at: Utc::now().naive_utc(), // Using current time as placeholder
+        created_by: scholar_row.created_by,
         statistics,
         is_followed_by_user,
         has_access,

@@ -31,6 +31,7 @@ pub struct BookDetails {
     pub image: Option<String>,
     pub created_at: NaiveDateTime,
     pub updated_at: NaiveDateTime,
+    pub created_by: i32,
     pub statistics: BookStatistics,
     pub has_access: Option<bool>, // Will be None if no user context, true if manager has access
 }

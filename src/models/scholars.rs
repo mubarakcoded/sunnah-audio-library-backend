@@ -28,6 +28,7 @@ pub struct ScholarDetails {
     pub image: Option<String>,
     pub created_at: NaiveDateTime,
     pub updated_at: NaiveDateTime,
+    pub created_by: i32,
     pub statistics: ScholarStatistics,
     pub is_followed_by_user: Option<bool>, // Will be None if no user context
     pub has_access: Option<bool>, // Will be None if no user context, true if manager has access

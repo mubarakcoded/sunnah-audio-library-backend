@@ -127,7 +127,7 @@ pub async fn get_book_details(
     let book_row = sqlx::query!(
         r#"
         SELECT 
-            b.id, b.name, b.about, b.scholar_id, b.image, b.created_at, b.updated_at,
+            b.id, b.name, b.about, b.scholar_id, b.image, b.created_at, b.updated_at, b.created_by,
             s.name as scholar_name
         FROM tbl_books b
         JOIN tbl_scholars s ON b.scholar_id = s.id
@@ -158,6 +158,7 @@ pub async fn get_book_details(
         image: Some(config.get_image_url(&book_row.image)),
         created_at: Utc::now().naive_utc(), // Using current time as placeholder
         updated_at: Utc::now().naive_utc(), // Using current time as placeholder
+        created_by: book_row.created_by,
         statistics,
         has_access,
     })
