@@ -50,9 +50,8 @@ impl EmailService {
             smtp_config.password.expose_secret().clone(),
         );
 
-        // For Mailtrap (port 2525), use STARTTLS instead of direct TLS
-        let mailer = if smtp_config.port == 2525 {
-            // Mailtrap configuration - use STARTTLS
+        // Use STARTTLS for ports 587 and 2525 (ZeptoMail, Mailtrap, etc.)
+        let mailer = if smtp_config.port == 587 || smtp_config.port == 2525 {
             SmtpTransport::starttls_relay(&smtp_config.host)
                 .map_err(|e| {
                     AppError::internal_error(format!("Failed to create SMTP transport: {}", e))
@@ -61,7 +60,7 @@ impl EmailService {
                 .credentials(credentials)
                 .build()
         } else {
-            // Standard SMTP configuration
+            // Standard SMTP configuration for other ports
             SmtpTransport::relay(&smtp_config.host)
                 .map_err(|e| {
                     AppError::internal_error(format!("Failed to create SMTP transport: {}", e))
