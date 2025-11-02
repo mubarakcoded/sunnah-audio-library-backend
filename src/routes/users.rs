@@ -56,10 +56,11 @@ pub async fn register(
     }))
 }
 
-#[tracing::instrument(name = "User Login", skip(pool, request, redis_service))]
+#[tracing::instrument(name = "User Login", skip(pool, config, request, redis_service))]
 #[post("/login")]
 pub async fn login(
     pool: web::Data<MySqlPool>,
+    config: web::Data<crate::core::AppConfig>,
     redis_service: web::Data<RedisHelper>,
     request: web::Json<LoginRequest>,
 ) -> Result<HttpResponse, AppError> {
@@ -91,7 +92,7 @@ pub async fn login(
         exp: expires_at.timestamp() as usize,
     };
 
-    let token = generate_jwt_token(&claims)?;
+    let token = generate_jwt_token(&claims, &config)?;
     let user_profile = UserProfile::from(user.clone());
 
     // Get user subscription status
@@ -135,6 +136,7 @@ pub struct RefreshTokenRequest { pub refresh_token: String }
 #[post("/refresh-token")]
 pub async fn refresh_token_endpoint(
     pool: web::Data<MySqlPool>,
+    config: web::Data<crate::core::AppConfig>,
     redis_service: web::Data<RedisHelper>,
     body: web::Json<RefreshTokenRequest>,
 ) -> Result<HttpResponse, AppError> {
@@ -174,7 +176,7 @@ pub async fn refresh_token_endpoint(
     let user = users::get_user_by_id(&pool, user_id).await?;
     let expires_at = Utc::now() + Duration::hours(24);
     let claims = JwtClaims { sub: user.id.to_string(), email: user.email.clone(), role: user.role.clone(), exp: expires_at.timestamp() as usize };
-    let token = generate_jwt_token(&claims)?;
+    let token = generate_jwt_token(&claims, &config)?;
 
     let refresh_expires_at = Utc::now() + Duration::days(14);
     let new_refresh = Uuid::new_v4().to_string();

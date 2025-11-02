@@ -5,7 +5,7 @@ use jsonwebtoken::{decode, DecodingKey, Validation};
 use std::future::{ready, Ready};
 use serde::{Deserialize, Serialize};
 use jsonwebtoken::{encode, EncodingKey, Header};
-use crate::core::AppError;
+use crate::core::{AppConfig, AppError};
 
 impl fmt::Display for ErrorResponse {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -38,6 +38,18 @@ impl FromRequest for JwtMiddleware {
     type Future = Ready<Result<Self, Self::Error>>;
 
     fn from_request(req: &HttpRequest, _: &mut Payload) -> Self::Future {
+        // Get AppConfig from request data
+        let config = match req.app_data::<actix_web::web::Data<AppConfig>>() {
+            Some(cfg) => cfg.get_ref().clone(),
+            None => {
+                let error = ErrorResponse {
+                    message: "Server configuration error".to_string(),
+                    success: false,
+                };
+                return ready(Err(ErrorUnauthorized(error)));
+            }
+        };
+
         let token = req
             .headers()
             .get(http::header::AUTHORIZATION)
@@ -61,7 +73,7 @@ impl FromRequest for JwtMiddleware {
 
         let claims = match decode::<JwtClaims>(
             &token.unwrap(),
-            &DecodingKey::from_secret("UDAFMIEOLANAOIEWOLADFWEALMOPNVALKAE".to_string().as_ref()),
+            &DecodingKey::from_secret(config.get_jwt_secret().as_ref()),
             &Validation::default(),
         ) {
             Ok(c) => c.claims,
@@ -91,11 +103,9 @@ impl FromRequest for JwtMiddleware {
     }
 }
 
-const JWT_SECRET: &str = "UDAFMIEOLANAOIEWOLADFWEALMOPNVALKAE";
-
-pub fn generate_jwt_token(claims: &JwtClaims) -> Result<String, AppError> {
+pub fn generate_jwt_token(claims: &JwtClaims, config: &AppConfig) -> Result<String, AppError> {
     let header = Header::default();
-    let encoding_key = EncodingKey::from_secret(JWT_SECRET.as_ref());
+    let encoding_key = EncodingKey::from_secret(config.get_jwt_secret().as_ref());
     
     encode(&header, claims, &encoding_key)
         .map_err(|_| AppError::internal_error("Failed to generate JWT token"))
@@ -110,6 +120,18 @@ impl FromRequest for JwtClaims {
         if let Some(claims) = req.extensions().get::<JwtClaims>() {
             return ready(Ok(claims.clone()));
         }
+
+        // Get AppConfig from request data
+        let config = match req.app_data::<actix_web::web::Data<AppConfig>>() {
+            Some(cfg) => cfg.get_ref().clone(),
+            None => {
+                let error = ErrorResponse {
+                    message: "Server configuration error".to_string(),
+                    success: false,
+                };
+                return ready(Err(ErrorUnauthorized(error)));
+            }
+        };
 
         // If not in extensions, parse the token directly
         let token = req
@@ -134,7 +156,7 @@ impl FromRequest for JwtClaims {
 
         let claims = match decode::<JwtClaims>(
             &token.unwrap(),
-            &DecodingKey::from_secret(JWT_SECRET.as_ref()),
+            &DecodingKey::from_secret(config.get_jwt_secret().as_ref()),
             &Validation::default(),
         ) {
             Ok(c) => c.claims,

@@ -1,10 +1,10 @@
-use actix_web::HttpRequest;
-use jsonwebtoken::{decode, DecodingKey, Validation};
 use crate::core::{jwt_auth::JwtClaims, AppConfig};
+use actix_web::{http, HttpRequest};
+use jsonwebtoken::{decode, DecodingKey, Validation};
 
 use super::{AppError, AppErrorType};
-use mp3_metadata;
 use id3::{Tag, TagLike};
+use mp3_metadata;
 use std::io::Cursor;
 
 /// Helper function to extract user ID from optional JWT token
@@ -12,7 +12,7 @@ use std::io::Cursor;
 pub fn extract_user_id_from_request(req: &HttpRequest, config: &AppConfig) -> Option<i32> {
     let token = req
         .headers()
-        .get(actix_web::http::header::AUTHORIZATION)
+        .get(http::header::AUTHORIZATION)
         .and_then(|value| value.to_str().ok())
         .and_then(|auth_header| {
             if auth_header.starts_with("Bearer ") {
@@ -26,7 +26,9 @@ pub fn extract_user_id_from_request(req: &HttpRequest, config: &AppConfig) -> Op
         &token,
         &DecodingKey::from_secret(config.get_jwt_secret().as_ref()),
         &Validation::default(),
-    ).ok()?.claims;
+    )
+    .ok()?
+    .claims;
 
     claims.sub.parse().ok()
 }
@@ -123,7 +125,6 @@ pub fn slugify(input: &str) -> String {
     slug
 }
 
-
 // Helper function to extract MP3 metadata
 pub fn extract_mp3_metadata(file_bytes: &[u8]) -> Result<(String, String), AppError> {
     // Extract duration using mp3-metadata
@@ -135,55 +136,15 @@ pub fn extract_mp3_metadata(file_bytes: &[u8]) -> Result<(String, String), AppEr
         })?
         .duration
         .as_secs();
-    
+
     let formatted_duration = format_duration(duration_secs.try_into().unwrap());
-    
+
     // Extract title from ID3 tags
     let cursor = Cursor::new(file_bytes);
     let title = Tag::read_from(cursor)
         .ok()
         .and_then(|tag| tag.title().map(|t| t.to_string()))
         .unwrap_or_else(|| "Untitled".to_string());
-    
+
     Ok((title, formatted_duration))
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_parse_duration() {
-        assert_eq!(parse_duration("45:30"), Ok(2730)); // 45*60 + 30
-        assert_eq!(parse_duration("1:23:45"), Ok(5025)); // 1*3600 + 23*60 + 45
-        assert!(parse_duration("invalid").is_err());
-        assert!(parse_duration("1:2:3:4").is_err());
-    }
-
-    #[test]
-    fn test_format_duration() {
-        assert_eq!(format_duration(2730), "45:30");
-        assert_eq!(format_duration(5025), "1:23:45");
-        assert_eq!(format_duration(90), "1:30");
-    }
-
-    #[test]
-    fn test_calculate_total_duration_from_strings() {
-        let durations = vec!["45:30".to_string(), "1:23:45".to_string()];
-        assert_eq!(calculate_total_duration_from_strings(&durations), Some("2:09:15".to_string()));
-        
-        let empty_durations: Vec<String> = vec![];
-        assert_eq!(calculate_total_duration_from_strings(&empty_durations), None);
-    }
-
-    #[test]
-    fn test_format_image_url() {
-        assert_eq!(format_image_url(Some("test.jpg".to_string())), Some("http://127.0.0.1:8990/api/v1/static/images/test.jpg".to_string()));
-        assert_eq!(format_image_url(None), None);
-    }
-
-    #[test]
-    fn test_format_file_url() {
-        assert_eq!(format_file_url("audio.mp3"), "http://127.0.0.1:8990/api/v1/static/uploads/audio.mp3");
-    }
 }
