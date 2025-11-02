@@ -33,7 +33,7 @@ use subscriptions::{
     get_subscription_plans, get_subscription_status, get_user_subscriptions, verify_subscription,
     expire_subscriptions,
 };
-use uploads::{download_file, upload_file};
+use uploads::{download_file, track_download, upload_file};
 use users::{
     change_password, deactivate_account, forgot_password, get_profile, login, register,
     reset_password, update_profile, refresh_token_endpoint, logout,
@@ -88,6 +88,7 @@ fn files_routes() -> Scope {
         .service(get_related_files)
         .service(get_file_suggestions) // New endpoint for next/previous suggestions
         .service(download_file)
+        .service(track_download) // Track downloads without downloading
         .service(update_file)
         .service(delete_file)
         // file_interactions_routes

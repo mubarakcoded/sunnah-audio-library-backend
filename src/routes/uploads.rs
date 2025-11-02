@@ -1,3 +1,4 @@
+use actix_files::NamedFile;
 use actix_multipart::Multipart;
 use actix_web::{get, post, web, HttpResponse, Responder};
 use futures_util::TryStreamExt;
@@ -8,7 +9,9 @@ use tracing::instrument;
 use uuid::Uuid;
 
 use crate::{
-    core::{extract_mp3_metadata, jwt_auth::JwtMiddleware, AppError, AppErrorType, AppSuccessResponse},
+    core::{
+        extract_mp3_metadata, jwt_auth::JwtMiddleware, AppError, AppErrorType, AppSuccessResponse,
+    },
     db::{access, file_interactions, subscriptions, uploads},
 };
 
@@ -42,17 +45,16 @@ pub async fn upload_file(
         })?;
 
     if user.role != "admin" {
-
         let scholar_id = uploads::get_scholar_id_from_book(pool.get_ref(), book_id)
-        .await
-        .map_err(|e| {
-            tracing::error!("Failed to get scholar_id for book {}: {:?}", book_id, e);
-            AppError {
-                message: Some("Book not found".to_string()),
-                cause: Some(e.to_string()),
-                error_type: AppErrorType::NotFoundError,
-            }
-        })?;
+            .await
+            .map_err(|e| {
+                tracing::error!("Failed to get scholar_id for book {}: {:?}", book_id, e);
+                AppError {
+                    message: Some("Book not found".to_string()),
+                    cause: Some(e.to_string()),
+                    error_type: AppErrorType::NotFoundError,
+                }
+            })?;
 
         let has_access =
             access::check_user_access_to_scholar(pool.get_ref(), auth.user_id, scholar_id)
@@ -91,7 +93,6 @@ pub async fn upload_file(
     let mut _description: Option<String> = None;
     let mut file_data: Option<(String, Vec<u8>, String)> = None;
 
-
     // Process multipart form data
     while let Some(mut field) = payload.try_next().await.map_err(|e| {
         tracing::error!("Failed to read multipart field: {:?}", e);
@@ -107,21 +108,17 @@ pub async fn upload_file(
         match field_name {
             "description" => {
                 let mut data = Vec::new();
-                while let Some(chunk) = field.try_next().await.map_err(|e| {
-                    AppError {
-                        message: Some("Failed to read description field".to_string()),
-                        cause: Some(e.to_string()),
-                        error_type: AppErrorType::PayloadValidationError,
-                    }
+                while let Some(chunk) = field.try_next().await.map_err(|e| AppError {
+                    message: Some("Failed to read description field".to_string()),
+                    cause: Some(e.to_string()),
+                    error_type: AppErrorType::PayloadValidationError,
                 })? {
                     data.extend_from_slice(&chunk);
                 }
-                let desc = String::from_utf8(data).map_err(|e| {
-                    AppError {
-                        message: Some("Invalid description encoding".to_string()),
-                        cause: Some(e.to_string()),
-                        error_type: AppErrorType::PayloadValidationError,
-                    }
+                let desc = String::from_utf8(data).map_err(|e| AppError {
+                    message: Some("Invalid description encoding".to_string()),
+                    cause: Some(e.to_string()),
+                    error_type: AppErrorType::PayloadValidationError,
                 })?;
                 if !desc.is_empty() {
                     _description = Some(desc);
@@ -152,12 +149,10 @@ pub async fn upload_file(
                     .unwrap_or_else(|| "audio/mpeg".to_string());
 
                 let mut file_bytes = Vec::new();
-                while let Some(chunk) = field.try_next().await.map_err(|e| {
-                    AppError {
-                        message: Some("Failed to read file data".to_string()),
-                        cause: Some(e.to_string()),
-                        error_type: AppErrorType::PayloadValidationError,
-                    }
+                while let Some(chunk) = field.try_next().await.map_err(|e| AppError {
+                    message: Some("Failed to read file data".to_string()),
+                    cause: Some(e.to_string()),
+                    error_type: AppErrorType::PayloadValidationError,
                 })? {
                     file_bytes.extend_from_slice(&chunk);
                     if file_bytes.len() > MAX_FILE_SIZE {
@@ -191,19 +186,23 @@ pub async fn upload_file(
     // Extract MP3 metadata (title and duration)
     let (title, duration) = extract_mp3_metadata(&file_bytes)?;
 
-    tracing::info!("Extracted MP3 metadata - Title: {}, Duration: {}", title, duration);
+    tracing::info!(
+        "Extracted MP3 metadata - Title: {}, Duration: {}",
+        title,
+        duration
+    );
 
     // Generate unique filename
     let file_stem = Path::new(&original_filename)
         .file_stem()
         .and_then(|s| s.to_str())
         .unwrap_or("Audio");
-    
+
     let file_extension = Path::new(&original_filename)
         .extension()
         .and_then(|ext| ext.to_str())
         .unwrap_or("mp3");
-    
+
     let random_id = Uuid::new_v4().to_string()[..5].to_string(); // 5 char random ID
     let unique_filename = format!("{}_{}.{}", file_stem, random_id, file_extension);
     let file_path = format!("{}/{}", upload_dir, unique_filename);
@@ -220,12 +219,12 @@ pub async fn upload_file(
     // Save file metadata to database
     let upload_response = uploads::save_uploaded_file(
         pool.get_ref(),
-        book_id,                // Use extracted title from MP3
+        book_id, // Use extracted title from MP3
         &file_stem,
         &unique_filename,
         file_bytes.len() as i64,
         &content_type,
-        &duration,                 // MP3 duration
+        &duration, // MP3 duration
         &random_id,
         auth.user_id,
     )
@@ -241,7 +240,6 @@ pub async fn upload_file(
         }
     })?;
 
-
     Ok(HttpResponse::Ok().json(AppSuccessResponse {
         success: true,
         message: "File uploaded successfully".to_string(),
@@ -250,48 +248,41 @@ pub async fn upload_file(
     }))
 }
 
-#[instrument(name = "Download File", skip(pool, req, config, auth))]
-#[get("/{file_id}/download")]
-pub async fn download_file(
+/// Track file download without actually downloading the file
+///
+/// This endpoint logs download activity for analytics purposes without
+/// transferring the actual file. Useful for:
+/// - Tracking downloads from external CDNs
+/// - Analytics and metrics collection
+/// - Monitoring user engagement
+///
+/// POST /api/v1/files/{file_id}/track-download
+#[instrument(name = "Track Download", skip(pool, req, auth))]
+#[post("/{file_id}/track-download")]
+pub async fn track_download(
     pool: web::Data<MySqlPool>,
-    config: web::Data<crate::core::config::AppConfig>,
     auth: JwtMiddleware,
     file_id: web::Path<i32>,
     req: actix_web::HttpRequest,
 ) -> Result<impl Responder, AppError> {
     let file_id = file_id.into_inner();
 
-    // Check if user has access to download this file
-    // let has_access = uploads::check_file_access_permission(pool.get_ref(), auth.user_id, file_id)
-    //     .await
-    //     .map_err(|e| {
-    //         tracing::error!("Failed to check file access: {:?}", e);
-    //         AppError {
-    //             message: Some("Failed to verify file permissions".to_string()),
-    //             cause: Some(e.to_string()),
-    //             error_type: AppErrorType::InternalServerError,
-    //         }
-    //     })?;
+    // Verify file exists
+    let file_exists = sqlx::query_scalar!(
+        "SELECT COUNT(*) FROM tbl_files WHERE id = ? AND status = 'active'",
+        file_id
+    )
+    .fetch_one(pool.get_ref())
+    .await
+    .map_err(AppError::db_error)?;
 
-    // if !has_access {
-    //     return Err(AppError {
-    //         message: Some("You don't have permission to download this file".to_string()),
-    //         cause: None,
-    //         error_type: AppErrorType::ForbiddenError,
-    //     });
-    // }
-
-    // Get file information
-    let file_info = uploads::get_file_download_info(pool.get_ref(), &config.app_paths.uploads_dir, file_id)
-        .await
-        .map_err(|e| {
-            tracing::error!("Failed to get file info: {:?}", e);
-            AppError {
-                message: Some("File not found".to_string()),
-                cause: Some(e.to_string()),
-                error_type: AppErrorType::NotFoundError,
-            }
-        })?;
+    if file_exists == 0 {
+        return Err(AppError {
+            message: Some("File not found".to_string()),
+            cause: None,
+            error_type: AppErrorType::NotFoundError,
+        });
+    }
 
     // Get user's active subscription (if any)
     let subscription_id =
@@ -313,7 +304,7 @@ pub async fn download_file(
         .map(|ua| ua.to_string());
 
     // Log the download
-    if let Err(e) = file_interactions::log_file_download(
+    file_interactions::log_file_download(
         &pool,
         auth.user_id,
         subscription_id,
@@ -322,30 +313,84 @@ pub async fn download_file(
         user_agent,
     )
     .await
-    {
-        tracing::warn!("Failed to log file download: {}", e);
-        // Don't fail the download if logging fails
-    }
-
-    // Read file from disk
-    let file_bytes = fs::read(&file_info.file_path).map_err(|e| {
-        tracing::error!("Failed to read file {}: {:?}", file_info.file_path, e);
+    .map_err(|e| {
+        tracing::error!("Failed to log file download: {:?}", e);
         AppError {
-            message: Some("File not found on disk".to_string()),
+            message: Some("Failed to track download".to_string()),
             cause: Some(e.to_string()),
-            error_type: AppErrorType::NotFoundError,
+            error_type: AppErrorType::InternalServerError,
         }
     })?;
 
-    tracing::info!("File {} downloaded by user {}", file_id, auth.user_id);
+    tracing::info!(
+        "Download tracked for file {} by user {}",
+        file_id,
+        auth.user_id
+    );
 
-    Ok(HttpResponse::Ok()
-        .content_type(file_info.content_type.as_str())
-        .insert_header((
-            "Content-Disposition",
-            format!("attachment; filename=\"{}\"", file_info.filename),
-        ))
-        .insert_header(("Content-Length", file_info.file_size.to_string()))
-        .insert_header(("Cache-Control", "private, max-age=86400")) // Cache for 24 hours, user-only
-        .body(file_bytes))
+    Ok(HttpResponse::Ok().json(AppSuccessResponse {
+        success: true,
+        message: "Download tracked successfully".to_string(),
+        data: Some(serde_json::json!({
+            "file_id": file_id,
+            "tracked_at": chrono::Utc::now()
+        })),
+        pagination: None,
+    }))
+}
+
+/// Optimized file download using streaming (no memory loading)
+///
+/// Performance improvements:
+/// - Uses NamedFile for zero-copy streaming directly from disk
+/// - No memory allocation for file contents
+/// - Supports range requests for partial downloads
+/// - Efficient for large files (100MB+)
+/// - Browser caching with Last-Modified headers
+///
+/// GET /api/v1/files/{file_id}/download
+#[instrument(name = "Download File", skip(pool, config, auth))]
+#[get("/{file_id}/download")]
+pub async fn download_file(
+    pool: web::Data<MySqlPool>,
+    config: web::Data<crate::core::config::AppConfig>,
+    auth: JwtMiddleware,
+    file_id: web::Path<i32>,
+) -> Result<NamedFile, AppError> {
+    let file_id = file_id.into_inner();
+
+    // Get file information (lightweight query)
+    let file_info =
+        uploads::get_file_download_info(pool.get_ref(), &config.app_paths.uploads_dir, file_id)
+            .await
+            .map_err(|e| {
+                tracing::error!("Failed to get file info: {:?}", e);
+                AppError {
+                    message: Some("File not found".to_string()),
+                    cause: Some(e.to_string()),
+                    error_type: AppErrorType::NotFoundError,
+                }
+            })?;
+
+    // Open file using NamedFile for efficient streaming
+    let named_file = NamedFile::open(&file_info.file_path)
+        .map_err(|e| {
+            tracing::error!("Failed to open file {}: {:?}", file_info.file_path, e);
+            AppError {
+                message: Some("File not found on disk".to_string()),
+                cause: Some(e.to_string()),
+                error_type: AppErrorType::NotFoundError,
+            }
+        })?
+        .use_last_modified(true)
+        .set_content_disposition(actix_web::http::header::ContentDisposition {
+            disposition: actix_web::http::header::DispositionType::Attachment,
+            parameters: vec![actix_web::http::header::DispositionParam::Filename(
+                file_info.filename.clone(),
+            )],
+        });
+
+    tracing::info!("File {} streamed to user {}", file_id, auth.user_id);
+
+    Ok(named_file)
 }
