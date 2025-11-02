@@ -1,5 +1,6 @@
 use crate::core::{AppConfig, EmailService, RedisHelper};
 use crate::routes::sunnah_audio_routes;
+use crate::jobs::start_subscription_expiry_checker;
 use actix_cors::Cors;
 use actix_web::http::header;
 use actix_web::{dev::Server, web::Data, App, HttpServer};
@@ -29,6 +30,9 @@ impl SunnahWebServer {
 
         let listener = TcpListener::bind(address)?;
         let port = listener.local_addr().unwrap().port();
+
+        // Start background job for subscription expiry checking
+        start_subscription_expiry_checker(mysql_pool.clone()).await;
 
         let server = run(listener, mysql_pool, redis, configuration.smtp).await?;
 

@@ -2,6 +2,7 @@ use crate::core::jwt_auth::JwtClaims;
 use crate::core::AppError;
 use crate::core::{AppErrorResponse, AppSuccessResponse};
 use crate::db::subscriptions;
+use crate::jobs::subscription_expiry::expire_subscriptions_now;
 use crate::models::subscriptions::{CreateSubscriptionRequest, VerifySubscriptionRequest};
 
 use actix_web::{get, post, put, web, HttpResponse, Result};
@@ -185,6 +186,32 @@ pub async fn verify_subscription(
         success: true,
         data: subscription,
         message: message.to_string(),
+        pagination: None,
+    }))
+}
+
+#[tracing::instrument(name = "Expire Subscriptions Now", skip(pool, claims))]
+#[post("/admin/expire-now")]
+pub async fn expire_subscriptions(
+    pool: web::Data<MySqlPool>,
+    claims: JwtClaims,
+) -> Result<HttpResponse, AppError> {
+    // Check if user is admin
+    if claims.role != "admin" {
+        return Ok(HttpResponse::Forbidden().json(AppErrorResponse {
+            success: false,
+            message: "Access denied. Admin role required.".to_string(),
+        }));
+    }
+
+    let expired_count = expire_subscriptions_now(&pool)
+        .await
+        .map_err(AppError::db_error)?;
+
+    Ok(HttpResponse::Ok().json(AppSuccessResponse {
+        success: true,
+        data: serde_json::json!({ "expired_count": expired_count }),
+        message: format!("Successfully expired {} subscription(s)", expired_count),
         pagination: None,
     }))
 }

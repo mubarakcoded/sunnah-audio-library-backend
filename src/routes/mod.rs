@@ -31,6 +31,7 @@ use states::get_states;
 use subscriptions::{
     create_subscription, get_active_subscription, get_pending_subscriptions,
     get_subscription_plans, get_subscription_status, get_user_subscriptions, verify_subscription,
+    expire_subscriptions,
 };
 use uploads::{download_file, upload_file};
 use users::{
@@ -166,6 +167,7 @@ fn subscriptions_routes() -> Scope {
         .service(create_subscription)
         .service(get_pending_subscriptions)
         .service(verify_subscription)
+        .service(expire_subscriptions)
 }
 
 fn play_history_routes() -> Scope {
